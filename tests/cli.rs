@@ -250,12 +250,13 @@ fn build_runs_a_job_here_and_status_says_how_it_went() {
     assert!(said.starts_with("no repositories yet"), "{said}");
     let root = home.repo("app");
     let commit = home.git(&root, &["rev-parse", "HEAD"]);
-    // Until the generator lands, a build gets as far as the generator.
+    // With no Claude Code, a build gets as far as checking it can read.
     let out = home.run(&["build", root.to_str().unwrap()]);
     assert_eq!(out.status.code(), Some(1));
-    assert_eq!(
-        stderr(&out),
-        "lattice: not yet: the generator comes in lattice's next release\n"
+    let said = stderr(&out);
+    assert!(
+        said.starts_with("lattice: Claude Code couldn't read a file: couldn't start claude"),
+        "{said}"
     );
     let said = stdout(&out);
     assert!(said.contains("job 1: build of app\n"), "{said}");
@@ -263,7 +264,7 @@ fn build_runs_a_job_here_and_status_says_how_it_went() {
     let said = stdout(&home.run(&["status"]));
     assert!(said.starts_with("app  app  ~/code/app\n"), "{said}");
     assert!(
-        said.contains("  job 1: build failed: not yet: the generator comes"),
+        said.contains("  job 1: build failed: Claude Code couldn't read a file"),
         "{said}"
     );
     assert_eq!(said, stdout(&home.run(&["status", "app"])));

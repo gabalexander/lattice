@@ -1,0 +1,182 @@
+[
+	{
+		"id": "process-model",
+		"question": "What processes make up docket at runtime, and how does the terminal UI find or start the background daemon?",
+		"answer": "One binary runs as two processes. `docket daemon` is a background process that owns every PTY, the SQLite store, git worktrees and the hook receiver/status engine. The TUI (`docket` with no subcommand) is a ratatui client. The TUI connects to the unix socket `daemon.sock` in the runtime dir ($DOCKET_RUNTIME_DIR, else $XDG_RUNTIME_DIR/docket, else /tmp/docket-<uid>, a mode-0700 dir); if nothing is listening, it spawns `<current_exe> daemon` in a new session (setsid) and polls for about 3 s, so agents keep running after the TUI quits.",
+		"evidence": "ARCHITECTURE.md:7-12; crates/docket-tui/src/ipc.rs:25-84; crates/docket/src/main.rs:81-88; crates/docket-core/src/paths.rs:4-36",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "wire-framing",
+		"question": "How is a message framed on the socket between the docket client and daemon, and how are PTY bytes carried differently from control messages?",
+		"answer": "Every frame is `[u32 big-endian length][u8 kind][payload]`. Kind 0x00 is a control message in canonical JSON: no whitespace, keys sorted, and the message type in a `t` field. Kinds 0x01 (PTY output), 0x02 (input), 0x03 (scrollback replay) and 0x04 (output tail) are raw frames: a small binary session header, then the PTY bytes exactly as printed, so terminal bytes never pass through JSON.",
+		"evidence": "crates/docket-core/src/codec.rs:1-75; ARCHITECTURE.md:14",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "protocol-version-handshake",
+		"question": "How do the docket TUI and daemon detect that they speak incompatible protocol versions, and where is the version defined?",
+		"answer": "The client's first request is `Hello { protocol_version }`. The daemon answers `HelloOk` (with its pid) only if that equals its own `PROTOCOL_VERSION`, a constant in crates/docket-core/src/protocol.rs (45 at this commit). Otherwise it sends `Incompatible { daemon_protocol_version }` and closes the connection, and the TUI exits with a version-skew message saying which side is stale. Only breaking wire changes bump the version, because decoders ignore unknown fields and skip unknown message types.",
+		"evidence": "crates/docket-core/src/protocol.rs:29; crates/docket-daemon/src/server.rs:104-116; crates/docket-tui/src/ipc.rs:94-130; crates/docket-core/src/codec.rs:28-33; docs/how-it-works.md:56-60",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "attach-replay",
+		"question": "When a client attaches to a running session in docket, how does it get the existing screen and then live output?",
+		"answer": "The client sends `Attach` (session, from_seq, cols, rows). The daemon first subscribes to the PTY's event broadcast, then snapshots the session's scrollback ring (1 MiB) and sends it as a `Scrollback` raw 0x03 frame, which tells the client to reset its terminal before applying it. After that it streams live `Output` 0x01 frames, and keystrokes go back as `Input` 0x02. Detaching never kills the child. If the PTY is respawned (a restart or relocation), the forward task rebinds and sends a fresh Scrollback.",
+		"evidence": "crates/docket-daemon/src/attach.rs:1-67; crates/docket-core/src/codec.rs:47-56; crates/docket-daemon/src/pty/mod.rs:21; ARCHITECTURE.md:58",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "sqlite-persistence",
+		"question": "Where and how does docket persist projects, worktrees, agents and tasks?",
+		"answer": "In a SQLite database, `docket.db`, owned by the daemon's store module. It lives in the data dir: DOCKET_DATA_DIR if set, else the platform data dir (~/.local/share/docket on Linux, ~/Library/Application Support/dev.docket.docket on macOS). It is opened in WAL mode with foreign keys on, and the schema is upgraded by an ordered list of migrations tracked through `PRAGMA user_version`.",
+		"evidence": "crates/docket-core/src/paths.rs:45-65; crates/docket-daemon/src/store.rs:33,653-697; crates/docket-daemon/src/lib.rs:85",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "status-via-hooks",
+		"question": "How does docket learn whether an agent CLI is working, finished, or waiting on the user?",
+		"answer": "Through the agent CLIs' own hooks, not MCP. At each spawn the daemon merges managed hook groups into the CLI's config: `<worktree>/.claude/settings.local.json` for Claude, `~/.codex/hooks.json` for Codex, or `<worktree>/.cursor/hooks.json` for Cursor. The groups are tagged `_docketManaged` and rebuilt on every spawn, and user hooks are left alone. Each hook is an env-guarded curl to the daemon's loopback HTTP receiver (127.0.0.1 on a random port, routes /api/hooks/<cli>), authenticated with a random bearer token made fresh at each daemon start. Its events (UserPromptSubmit, Stop, PermissionRequest, SubagentStart/Stop, …) drive a per-agent status state machine.",
+		"evidence": "crates/docket-daemon/src/hooks/installer.rs:1-107; crates/docket-daemon/src/hooks/mod.rs:259-303; crates/docket-daemon/src/lib.rs:103-160; crates/docket-daemon/src/status.rs:1-60",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "worktree-location-and-base",
+		"question": "Where does docket create a new git worktree on disk, and which commit does its new branch start from by default?",
+		"answer": "At `<repo>/../<repo-name>-worktrees/<branch>`, with slashes in the branch name turned into dashes, using `git worktree add -b`. When no base is named, it fetches origin and branches (with --no-track) from the freshly fetched `origin/HEAD`; with no origin, or if the fetch fails, it falls back to the checkout's HEAD. `docket worktree --base` or the `worktree_base_branch` setting names a different base, which resolves to origin's copy of that branch when one exists.",
+		"evidence": "crates/docket-daemon/src/git.rs:153-243,278-296; crates/docket-daemon/src/config.rs:33-41",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "settings-layers",
+		"question": "How does docket store and merge user settings, and what happens when a settings key can't be read by the current build?",
+		"answer": "There are two layers. `config.json` in the data dir (movable with DOCKET_CONFIG_FILE) is the portable layer. `config.local.json` holds machine-only settings that are never exported; it is merged over `config.json` key by key and wins. Both the TUI and the daemon load them through docket-core's settings module. If the merged object can't be deserialized as a whole, it is parsed one top-level key at a time, so only the unreadable keys fall back to defaults (and are reported as skipped) instead of the whole file.",
+		"evidence": "crates/docket-core/src/settings.rs:1-80; crates/docket-core/src/paths.rs:139-158; crates/docket-daemon/src/config.rs:204-217",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "task-lifecycle",
+		"question": "How does a docket task get closed, and what happens to it when its agent's turn ends without closing it?",
+		"answer": "A task closes only when someone says so explicitly: `docket done` (optionally with --summary) closes it `done`, and `docket fail <reason>` closes it `failed`. Nothing is inferred from terminal output. A turn that ends without either call moves the task to `waiting_human`, and it returns to `running` when the agent works again. If the agent dies the task fails, and archiving or deleting the agent cancels it. All of these moves come from a pure transition table in the daemon's tasks module.",
+		"evidence": "crates/docket-daemon/src/tasks.rs:1-119; crates/docket/src/main.rs:145-157",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "flow-runs",
+		"question": "What is a flow in docket, where are flow definitions read from, and how does a run advance?",
+		"answer": "A flow is a named, ordered list of at most 12 steps, run one at a time, each as an ordinary task. Definitions come from `<data dir>/flows/<name>.json` and from the `flows` key of a project's `.docket.json`, where the project's entry wins by name; the definition is copied onto the run when it starts. A daemon tick, woken whenever a step's task is broadcast and also every 2 s, advances the run. When a step's task is done, the run launches the next step, stops at a gate for the user's y/n (an n can send the run back to the gate's `back_to` step for another round), or finishes. A failed or cancelled task fails or cancels the run.",
+		"evidence": "crates/docket-core/src/flows.rs:1-35; crates/docket-daemon/src/flows.rs:1-147; crates/docket-daemon/src/lib.rs:188-205",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "handoff-file",
+		"question": "What is docket's handoff file, who writes it, and how do later sessions use it?",
+		"answer": "It is `<checkout>/.docket/handoff.md`, and only the daemon writes it. Notes from `docket handoff <note>` and each closed task's summary or reason are appended as dated markdown sections. The `.docket/` directory gets a `.gitignore` of `*` unless the project sets `handoff_in_git`. Every session later launched in that checkout gets a handoff rule that points at the file and includes its tail in the prompt.",
+		"evidence": "crates/docket-core/src/paths.rs:91-103; crates/docket-daemon/src/handoff.rs:1-49; ARCHITECTURE.md:75",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "headless-sessions",
+		"question": "What is a headless session in docket and how does the daemon know its status without hooks or a terminal?",
+		"answer": "A headless session is an agent row whose CLI is `claude -p`, driven over Claude Code's stream-json control protocol on stdin/stdout instead of running in a PTY. The daemon's headless module drives it through the docket-claude crate. Its status comes from the stream: a turn in flight is running, a `can_use_tool` request is needs_feedback (shown as a pending permission), `result` is finished (and closes a task as done or failed), and the stream ending mid-turn is terminated. The checkout's hooks still fire inside `claude -p`, but the receiver drops them for headless rows.",
+		"evidence": "crates/docket-daemon/src/headless.rs:1-47; ARCHITECTURE.md:105,109",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "idle-reaper",
+		"question": "Which docket sessions get killed for being idle, after how long, and how often is that checked?",
+		"answer": "`session_idle_timeout` defaults to 5m; `off` or 0 turns reaping off, and malformed values fall back to 5m. The reaper sweeps every 15 s (DOCKET_IDLE_REAP_MS), so a session can live up to 15 s past the timeout. Only sessions in worktrees no client is viewing count down. Agents that are running or need feedback, agents with a backgrounded tool job, run terminals and terminals running a command are all spared, and a reaped agent resumes its conversation on the next attach. Unclaimed prewarm spares are handled separately and reaped after 15 minutes.",
+		"evidence": "crates/docket-daemon/src/config.rs:20-32,201-202,297-301,342-362; crates/docket-daemon/src/lib.rs:171-222; crates/docket-daemon/src/registry.rs:25-27,662-745",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "stop-gate-graces",
+		"question": "When a Claude agent's Stop hook fires while subagents are still active, how does docket decide when the session is actually finished?",
+		"answer": "The Stop is held, so the row stays running while tracked subagents remain, and the daemon re-checks every status machine every 30 s. The session becomes finished once the subagent set has been empty for 180 s. If tracked subagents show no sign of life for 30 minutes, they are presumed killed and the session finishes anyway. A SubagentStart that arrives within 30 s after a finish turns the row back to running, and individually tracked subagents older than 2 hours are dropped.",
+		"evidence": "crates/docket-daemon/src/status.rs:1-22,62-72,219-224,451-457,556-590; crates/docket-daemon/src/lib.rs:171-186",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "resume-fast-failure",
+		"question": "What does the docket daemon do when an agent CLI started with a resume of a stored session id exits with an error right after spawning?",
+		"answer": "If a resumed spawn exits with a non-zero (or unknown) code within 10 seconds, the daemon treats the session as missing: it clears the stored session id and respawns the agent fresh. The exception is Claude when the session's transcript still exists on disk: the id is kept and the pane shows why the CLI quit, or, if the session runs in Claude's background, the daemon reopens it with `claude attach`. Archived and cloud rows are never respawned.",
+		"evidence": "crates/docket-daemon/src/registry.rs:43-57,3093-3160,3390-3396",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "send-loop-guard",
+		"question": "What limits does the docket daemon enforce on `docket send` messages between sessions to prevent agent-to-agent loops?",
+		"answer": "A session may send at most 20 messages per rolling minute; the 21st is refused. A text under 20 characters made only of acknowledgement words (ok, thanks, received, ack, done, noted), or with no letters at all, is also refused. The text is tidied and cut to 8 KiB under a `[docket] Message from session …` header. A target with no live CLI is refused rather than started, and a terminal target receives a bracketed paste, a 50 ms pause, then Enter.",
+		"evidence": "crates/docket-daemon/src/messages.rs:1-75",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "plugin-runner-limits",
+		"question": "How does the docket daemon run plugins: concurrency, timeout, and what happens when a plugin keeps failing?",
+		"answer": "The runner tails the event log, starting at the newest line when the daemon boots, so old events are never replayed. Matching events are queued per plugin (100 deep, oldest dropped), and each plugin has one worker, so it runs one invocation at a time. A run is killed, along with its whole process group, once it passes the manifest's `timeout_secs` (default 30 s, maximum 3600). Three failures in a row pause the plugin with a `plugin_paused` event until `docket plugin enable` resumes it. Project plugins under `.docket/plugins/` never run unless they are enabled in config.",
+		"evidence": "crates/docket-core/src/plugins.rs:28-48,814-883; crates/docket-daemon/src/plugins.rs:1-74,125-140; crates/docket-daemon/src/config.rs:169-173",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "worktree-hook-failure",
+		"question": "How are docket's worktree create/delete hooks configured, how long may they run, and what happens if one fails?",
+		"answer": "Each hook is an executable named in git config (`docket.worktreeCreateHook` or `docket.worktreeDeleteHook`), never a file inside the checkout. The daemon spawns it directly, with no shell, from the main checkout after the git operation and the row change, passing the repo path and the worktree path as arguments. The default timeout is 30 s (DOCKET_HOOK_TIMEOUT_MS overrides it); after that the hook's whole process group is SIGKILLed. A failure, timeout or spawn error only produces a warning to clients; the create or delete is never rolled back.",
+		"evidence": "crates/docket-daemon/src/worktree_hooks.rs:1-96,150-212",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "worktree-sync-probe",
+		"question": "How quickly and by what mechanism does docket notice git worktrees created, removed, or switched outside docket?",
+		"answer": "A daemon loop runs every 2 s (DOCKET_WORKTREE_SYNC_MS, never below 50 ms). For each project it takes the newest modification time among the shared `.git/HEAD`, the `.git/worktrees` directory and each linked worktree's HEAD. Only when that timestamp differs from the one recorded at the last successful sync does it run `git worktree list` and reconcile the rows. The timestamp is saved only after a successful sync, so a failed sync is retried on the next tick.",
+		"evidence": "crates/docket-daemon/src/lib.rs:37-55,263-310,379-427",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "tui-frame-pacing",
+		"question": "How does the docket TUI limit its redraw rate without delaying the frame that answers a keypress?",
+		"answer": "It uses a token bucket instead of a fixed 16 ms tick. Up to 3 frames may be painted back to back, at least 2 ms apart, and one token comes back every 16 ms. So sustained PTY output still paints at about 60 fps, while a keypress's frame and the frame showing its answer go out without waiting. The next frame is also never scheduled sooner than the previous draw took.",
+		"evidence": "crates/docket-tui/src/event_loop/pacing.rs:1-82",
+		"tags": [
+			"depth"
+		]
+	}
+]
