@@ -1,0 +1,5 @@
+{
+  "name": "@acme/loom",
+  "version": "0.1.0",
+  "bin": { "loom": "dist/cli.js" }
+}

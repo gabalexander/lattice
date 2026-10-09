@@ -34,6 +34,7 @@ lattice sync .            # write again what changed since its last version
 | --- | --- |
 | [docs/configuration.md](docs/configuration.md) | The settings, and where lattice keeps its data |
 | [docs/claude.md](docs/claude.md) | How lattice runs Claude Code: read-only, locked down, with a budget |
+| [docs/index.md](docs/index.md) | The symbol index the code links come from: SCIP indexers, tree-sitter, paths |
 
 ## License
 

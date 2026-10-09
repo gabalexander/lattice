@@ -1,0 +1,37 @@
+# A span, the files it's near (comma-separated, or -), and what it links to
+# (- for nothing): read by tests/cli.rs.
+Session::stop	-	src/session.rs#L16-L18
+Session::stop()	-	src/session.rs#L16-L18
+session::Session	-	src/session.rs#L2-L5
+Session	-	src/session.rs#L2-L5
+struct Session	-	src/session.rs#L2-L5
+fn stop	-	src/session.rs#L16-L18
+rings	-	src/session.rs#L20-L22
+State::Ringing	-	src/session.rs#L27
+new	-	-
+new	src/config.rs	src/config.rs#L29-L31
+Config::new	-	src/config.rs#L29-L31
+session	-	src/session.rs
+src/session.rs	-	src/session.rs
+session.rs	-	src/session.rs
+src/session.rs:16	-	src/session.rs#L16
+src/	-	src
+[sessions] stop-idle-after	-	src/config.rs#L20
+sessions.stop-idle-after	-	src/config.rs#L20
+[sessions]	-	src/config.rs#L12
+[[profile]]	-	src/config.rs#L14
+BELL_QUIET	-	src/config.rs#L7
+$BELL_QUIET	-	src/config.rs#L7
+bell.toml	-	src/config.rs#L4
+bell ring	-	src/main.rs#L20-L25
+bell ring --wait	-	src/main.rs#L23
+ring --wait	-	src/main.rs#L23
+bell stop	-	src/main.rs#L27
+bell config stop	-	src/main.rs#L40-L43
+bell config stop --force	-	src/main.rs#L42
+bell stop --force	-	-
+--wait	-	src/main.rs#L23
+-S	-	src/main.rs#L12
+rings()	-	src/session.rs#L20-L22
+Vec<String>	-	-
+cargo test	-	-

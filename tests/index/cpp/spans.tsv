@@ -1,0 +1,14 @@
+# A span, the files it's near (comma-separated, or -), and what it links to
+# (- for nothing): read by tests/cli.rs.
+Press	-	include/press.h#L13-L21
+press::Press	-	include/press.h#L13-L21
+Press::stamp	-	src/press.cpp#L7-L9
+Press::stamp	include/press.h	include/press.h#L16
+Plate::width	-	include/press.h#L9
+MAX_TONS!	-	include/press.h#L4
+PRESS_CONFIG	-	include/press.h#L3
+Job	-	src/legacy.c#L1-L3
+Job::id	-	src/legacy.c#L2
+run_job()	-	src/legacy.c#L7-L9
+jobs_run	src/legacy.c	src/legacy.c#L5
+jobs_run	-	-

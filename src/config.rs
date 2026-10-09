@@ -9,6 +9,13 @@
 //! ask_model = "sonnet"      # the model that answers the chat
 //! ask_budget_usd = 0.5      # the most one question may spend
 //! exclude = ["vendor/**"]   # files left out of every wiki
+//!
+//! [index]                   # the symbol index links come from
+//! precise = true            # run the SCIP indexers installed here
+//! indexer_timeout_secs = 900
+//! indexer_memory_mb = 8192
+//! max_file_kb = 1024
+//! paths_only = ["vendor/", "third_party/", "node_modules/", "testdata/"]
 //! ```
 //!
 //! A key lattice doesn't know is an error, not something to skip: a
@@ -17,6 +24,7 @@
 //!
 //! Adapted from crystal's `src/config.rs` (MIT).
 
+use crate::index::IndexSettings;
 use crate::paths;
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
@@ -44,6 +52,10 @@ pub struct Config {
     /// Files left out of every wiki, as globs the way `.gitignore` writes
     /// them: `vendor/`, `*.pb.go`, `docs/**/*.svg`.
     pub exclude: Vec<String>,
+    /// How the symbol index the wiki's links come from is built: `[index]`
+    /// in the file. Its `exclude` is never read from there: it's the one
+    /// above, which [`Config::index_settings`] gives it.
+    pub index: IndexSettings,
 }
 
 impl Default for Config {
@@ -55,6 +67,7 @@ impl Default for Config {
             ask_model: "sonnet".to_string(),
             ask_budget_usd: 0.5,
             exclude: Vec::new(),
+            index: IndexSettings::default(),
         }
     }
 }
@@ -84,6 +97,15 @@ impl Config {
         Ok(config)
     }
 
+    /// How the symbol index is built: `[index]`, leaving out the files
+    /// every wiki leaves out.
+    pub fn index_settings(&self) -> IndexSettings {
+        IndexSettings {
+            exclude: self.exclude.clone(),
+            ..self.index.clone()
+        }
+    }
+
     /// Refuses settings that make no sense, naming the one that doesn't.
     pub fn check(&self) -> Result<()> {
         check_model(&self.model).context("model")?;
@@ -106,6 +128,19 @@ impl Config {
         }
         if self.exclude.iter().any(|glob| glob.trim().is_empty()) {
             bail!("exclude has an empty glob");
+        }
+        let index = &self.index;
+        for (name, value) in [
+            ("indexer_timeout_secs", index.indexer_timeout_secs),
+            ("indexer_memory_mb", index.indexer_memory_mb),
+            ("max_file_kb", index.max_file_kb),
+        ] {
+            if value == 0 {
+                bail!("[index] {name} is 0: it's more than 0");
+            }
+        }
+        if index.paths_only.iter().any(|glob| glob.trim().is_empty()) {
+            bail!("[index] paths_only has an empty glob");
         }
         Ok(())
     }
@@ -146,8 +181,32 @@ mod tests {
                 ask_model: "claude-haiku-5-5".into(),
                 ask_budget_usd: 0.25,
                 exclude: vec!["vendor/**".into(), "*.min.js".into()],
+                index: IndexSettings::default(),
             }
         );
+    }
+
+    #[test]
+    fn the_index_is_built_by_a_table_of_its_own_with_the_wiki_s_exclude() {
+        let index = Config::default().index_settings();
+        assert!(index.precise);
+        assert_eq!((index.indexer_timeout_secs, index.max_file_kb), (900, 1024));
+        assert_eq!(index.paths_only[0], "vendor/");
+        let config = Config::from_text(
+            "exclude = [\"gen/\"]\n[index]\nprecise = false\nindexer_memory_mb = 2048\n\
+             paths_only = [\"third_party/\"]\n",
+        )
+        .unwrap();
+        let index = config.index_settings();
+        assert!(!index.precise);
+        assert_eq!((index.indexer_memory_mb, index.max_file_kb), (2048, 1024));
+        assert_eq!(index.paths_only, ["third_party/"]);
+        assert_eq!(index.exclude, ["gen/"]);
+        let refused = |text: &str| format!("{:#}", Config::from_text(text).unwrap_err());
+        assert!(refused("[index]\nprecis = false").contains("unknown field `precis`"));
+        assert!(refused("[index]\nexclude = [\"x\"]").contains("unknown field `exclude`"));
+        assert!(refused("[index]\nmax_file_kb = 0").contains("[index] max_file_kb is 0"));
+        assert!(refused("[index]\npaths_only = [\"\"]").contains("empty glob"));
     }
 
     #[test]

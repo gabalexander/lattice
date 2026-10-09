@@ -1,0 +1,10 @@
+# A span, the files it's near (comma-separated, or -), and what it links to
+# (- for nothing): read by tests/cli.rs.
+Mill	-	src/main/java/com/example/mill/Mill.java#L4-L20
+com.example.mill.Mill	-	src/main/java/com/example/mill/Mill.java#L4-L20
+Mill.grind	-	src/main/java/com/example/mill/Mill.java#L13-L14
+Mill.stones	-	src/main/java/com/example/mill/Mill.java#L7
+Mill.Speed.FAST	-	src/main/java/com/example/mill/Mill.java#L18
+MILL_HOME	-	src/main/java/com/example/mill/Mill.java#L5
+grind	-	src/main/java/com/example/mill/Mill.java#L13-L14
+Grinder	-	src/main/java/com/example/mill/Grinder.java#L3-L5

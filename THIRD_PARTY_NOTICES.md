@@ -39,8 +39,8 @@ SOFTWARE.
 https://github.com/gabalexander/crystal
 
 Much of lattice started in crystal: the modules that say so at their top (`claude`, `clipboard`, `config`, `db`,
-`download`, `links`, `mermaid`, `output`, `printable`, `secrets`, `shell`), `install.sh`, the workflows, the
-Makefile and the Homebrew formula. crystal's `src/mermaid/` is itself adapted from docket's `docket-mermaid`
+`download`, `glob`, `index`, `links`, `mermaid`, `output`, `printable`, `secrets`, `shell`), `install.sh`, the
+workflows, the Makefile and the Homebrew formula. crystal's `src/mermaid/` is itself adapted from docket's `docket-mermaid`
 crate, by the same author.
 
 ```

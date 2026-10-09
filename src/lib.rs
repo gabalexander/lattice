@@ -14,6 +14,8 @@ pub mod clipboard;
 pub mod config;
 pub mod db;
 pub mod download;
+pub mod glob;
+pub mod index;
 pub mod links;
 pub mod mermaid;
 pub mod output;
