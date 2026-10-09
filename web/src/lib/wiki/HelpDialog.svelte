@@ -4,7 +4,7 @@
   import Icon from '$lib/components/Icon.svelte';
   import type { Mode } from '$lib/codelinks';
 
-  let { made, mode, onclose }: { made: string; mode: Mode; onclose: () => void } = $props();
+  let { made, mode, place = 'in your editor', onclose }: { made: string; mode: Mode; place?: string; onclose: () => void } = $props();
   let dialog: HTMLDialogElement;
   const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
 
@@ -26,7 +26,7 @@
   <ul>
     <li>The outline on the left follows you down the page; click an entry to go there.</li>
     {#if mode === 'serve'}
-      <li>Click a name in <code>code</code> to open the file at that line in your editor; <kbd>{mod}</kbd>-click opens it on the forge, at the commit the page was written from.</li>
+      <li>Click a name in <code>code</code> to open the file at that line {place}; <kbd>{mod}</kbd>-click opens it on the forge, at the commit the page was written from. “Open code in”, at the foot of the outline, says where.</li>
     {:else}
       <li>Click a name in <code>code</code> to see the file at that line on the forge, at the commit the page was written from.</li>
     {/if}

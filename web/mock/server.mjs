@@ -6,6 +6,7 @@
 //
 //     node mock/server.mjs                  the API on 127.0.0.1:7348, for `npm run dev` to proxy to
 //     node mock/server.mjs --app build      the built app too, as lattice serves it: http://127.0.0.1:7348/
+//     node mock/server.mjs --wiki <file>    `crystal`'s versions from that wiki.json rather than the fixture
 //
 // It checks Host and Origin as lattice does, so a request the real server would refuse fails here too. Its
 // repos: `crystal` (the hand-written fixture, two versions, the code moved on since), `atlas` (a synthetic
@@ -36,10 +37,12 @@ const MERMAID = {
   sha256: '581ed7d74bd9048d0e3a91363927d72ef22942d7722546b27f7cc29e35390eb8',
 };
 const CACHE = join(HERE, '.cache');
+/** Where code may open, as lattice's `open_code_in` takes it. */
+const OPEN_IN = ['vscode', 'cursor', 'zed', 'intellij', 'pycharm', 'goland', 'webstorm', 'clion', 'rider', 'phpstorm', 'rubymine', 'editor', 'forge'];
 
 // ---- State -----------------------------------------------------------------------------------------------
 
-const crystalWiki = JSON.parse(readFileSync(join(HERE, 'fixtures', 'crystal.wiki.json'), 'utf8'));
+const crystalWiki = JSON.parse(readFileSync(flag('--wiki') ? resolve(flag('--wiki')) : join(HERE, 'fixtures', 'crystal.wiki.json'), 'utf8'));
 const atlasWiki = synthesize({ sections: 16, subsections: 90 });
 const hoursAgo = (h) => new Date(Date.now() - h * 3600e3).toISOString();
 const sha = (seed) => createHash('sha1').update(String(seed)).digest('hex');
@@ -51,7 +54,7 @@ const withVersion = (wiki, { commit, at, model, by, cost }) => ({
 });
 
 const state = {
-  settings: { model: 'sonnet', concurrency: 4, budget_usd: 0, ask_model: 'sonnet', ask_budget_usd: 0.5, exclude: ['vendor/**', '*.min.js'] },
+  settings: { model: 'sonnet', concurrency: 4, budget_usd: 0, ask_model: 'sonnet', ask_budget_usd: 0.5, exclude: ['vendor/**', '*.min.js'], open_code_in: 'vscode' },
   repos: new Map(),
   jobs: new Map(),
   nextJob: 41,
@@ -253,7 +256,9 @@ function readBody(req, limit = 64 * 1024) {
 }
 
 function repoJson(repo) {
-  return { key: repo.key, name: repo.name, source: repo.source, versions: repo.versions, job: repo.job ? jobJson(repo.job) : null };
+  // Where lattice would have its code: the path it was given, or its clone in lattice's data directory.
+  const root = repo.source.kind === 'local' ? repo.source.path : `/Users/you/.local/share/lattice/repos/${repo.key}/checkout`;
+  return { key: repo.key, name: repo.name, source: repo.source, root, versions: repo.versions, job: repo.job ? jobJson(repo.job) : null };
 }
 
 async function mermaid() {
@@ -387,10 +392,11 @@ async function api(req, res, url) {
       if (!models.includes(s.model)) return fail(res, 400, 'model: sonnet or opus');
       if (!models.includes(s.ask_model)) return fail(res, 400, 'ask_model: sonnet or opus');
       if (!Number.isInteger(s.concurrency) || s.concurrency < 1 || s.concurrency > 16) return fail(res, 400, 'concurrency: a whole number from 1 to 16');
-      if (typeof s.budget_usd !== 'number' || s.budget_usd <= 0) return fail(res, 400, 'budget_usd: more than 0');
+      if (typeof s.budget_usd !== 'number' || s.budget_usd < 0) return fail(res, 400, 'budget_usd: 0 for no limit, or more');
       if (typeof s.ask_budget_usd !== 'number' || s.ask_budget_usd <= 0) return fail(res, 400, 'ask_budget_usd: more than 0');
       if (!Array.isArray(s.exclude) || s.exclude.some((g) => typeof g !== 'string')) return fail(res, 400, 'exclude: a list of globs');
-      state.settings = { model: s.model, concurrency: s.concurrency, budget_usd: s.budget_usd, ask_model: s.ask_model, ask_budget_usd: s.ask_budget_usd, exclude: s.exclude };
+      if (!OPEN_IN.includes(s.open_code_in)) return fail(res, 400, `open_code_in: unknown variant \`${s.open_code_in}\`, expected one of ${OPEN_IN.join(', ')}`);
+      state.settings = { model: s.model, concurrency: s.concurrency, budget_usd: s.budget_usd, ask_model: s.ask_model, ask_budget_usd: s.ask_budget_usd, exclude: s.exclude, open_code_in: s.open_code_in };
       return json(res, 200, state.settings);
     }
   }

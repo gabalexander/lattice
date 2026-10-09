@@ -1,7 +1,10 @@
-/* lattice's look: Code Wiki's dark page (black, #131314 panels with 16px corners, #303030 diagram cards, light
-   blue links) and a light theme made to match, in Google Sans Flex, standing in for Google Sans and Google Sans
-   Text, which aren't free to bundle, and Google Sans Code; both under the SIL Open Font License
-   (static/fonts/OFL-*.txt). Every colour is a token here, so the two themes are the same page. */
+/* lattice's look: Code Wiki's page, dark (black, #131314 panels with 16px corners, #303030 diagram cards, light
+   blue links) and light (white panels on #f9fbfe, navy text), in Google Sans Flex, standing in for Google Sans and
+   Google Sans Text, which aren't free to bundle, and Google Sans Code; both under the SIL Open Font License
+   (static/fonts/OFL-*.txt). The Flex here is its 18pt optical size, whose widths are Google Sans's at the
+   headings' sizes and within 1% of Google Sans Text's at 14px; its smaller optical sizes only run wider. Google
+   Sans Code is its variable font from 400 to 700, for code at Code Wiki's 600. Every colour is a token here, so
+   the two themes are the same page. */
 
 @font-face {
   font-family: 'Google Sans Flex';
@@ -13,16 +16,8 @@
 }
 @font-face {
   font-family: 'Google Sans Code';
-  src: url('/fonts/google-sans-code-400.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: 'Google Sans Code';
-  src: url('/fonts/google-sans-code-500.woff2') format('woff2');
-  font-weight: 500 700;
+  src: url('/fonts/google-sans-code.woff2') format('woff2');
+  font-weight: 400 700;
   font-style: normal;
   font-display: swap;
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
@@ -36,9 +31,13 @@
   --bg: #000;
   --panel: #131314;
   --panel-2: #1b1b1d;
-  --panel-line: #232427;
+  --panel-line: #444746;
   --card: #303030;
+  --card-line: #444746;
   --text: #fff;
+  /* The document's own text, and the outline's. */
+  --doc-text: #fff;
+  --outline-text: #e3e3e3;
   --text-2: #c4c7c5;
   --text-3: #9a9d9b;
   --rule: #3c4043;
@@ -51,7 +50,7 @@
   --code-fg: #f1f3f4;
   --chip-hover: #4a4b4f;
   --code-block-bg: #1b1c1d;
-  --outline-rule: #7f97c4;
+  --outline-rule: #a1c9ff;
   --outline-active: #aecbfa;
   --button-line: #444746;
   --input-bg: #303030;
@@ -90,28 +89,31 @@
 }
 
 :root[data-resolved-theme='light'] {
-  --bg: #fff;
-  --panel: #f0f4f9;
+  --bg: #f9fbfe;
+  --panel: #fff;
   --panel-2: #e9eef6;
-  --panel-line: #e3e8ee;
-  --card: #dfe5ec;
+  --panel-line: #c4c7c5;
+  --card: #fdfcfb;
+  --card-line: #dadada;
   --text: #1f1f1f;
+  --doc-text: #002549;
+  --outline-text: #1f1f1f;
   --text-2: #444746;
   --text-3: #5f6368;
   --rule: #c4c7c5;
-  --link: #0b57d0;
+  --link: #174ea6;
   --accent: #0b57d0;
   --accent-line: #0b57d0;
   --accent-ink: #fff;
   --accent-soft: rgba(11, 87, 208, 0.08);
-  --code-bg: #dde3ea;
-  --code-fg: #1f1f1f;
-  --chip-hover: #c9d3df;
-  --code-block-bg: #fff;
-  --outline-rule: #8fa6d6;
+  --code-bg: #e8f0fe;
+  --code-fg: #37474f;
+  --chip-hover: #d3e3fd;
+  --code-block-bg: #f8fafd;
+  --outline-rule: #1157ce;
   --outline-active: #0b57d0;
   --button-line: #c4c7c5;
-  --input-bg: #fff;
+  --input-bg: #e9eef6;
   --input-line: #a8acb0;
   --hover: rgba(0, 0, 0, 0.06);
   --press: rgba(0, 0, 0, 0.1);

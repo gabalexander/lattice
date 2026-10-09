@@ -344,6 +344,7 @@ fn a_repository_is_built_followed_versioned_and_synced() {
         .find(|repo| repo["key"] == key)
         .unwrap();
     assert_eq!(app["source"], json!({"kind": "local", "path": root}));
+    assert_eq!(app["root"], json!(root), "its code, for the editors' links");
     assert_eq!(app["versions"], json!([]));
     assert_eq!(app["job"], Value::Null);
     assert_eq!(served.get(&format!("/api/repos/{key}/wiki")).0, 404);
@@ -692,7 +693,7 @@ fn the_settings_are_read_checked_and_saved() {
     assert_eq!(
         settings,
         json!({"model": "sonnet", "concurrency": 4, "budget_usd": 0.0, "ask_model": "sonnet",
-               "ask_budget_usd": 0.5, "exclude": [],
+               "ask_budget_usd": 0.5, "exclude": [], "open_code_in": "vscode",
                "index": {"precise": true, "indexer_timeout_secs": 900, "indexer_memory_mb": 8192,
                          "max_file_kb": 1024,
                          "paths_only": ["vendor/", "third_party/", "node_modules/", "testdata/"]}})
@@ -700,11 +701,13 @@ fn the_settings_are_read_checked_and_saved() {
     let mut changed = settings.clone();
     changed["model"] = json!("opus");
     changed["exclude"] = json!(["vendor/**"]);
+    changed["open_code_in"] = json!("zed");
     let (status, saved) = served.call("PUT", "/api/settings", &changed);
     assert_eq!((status, &saved), (200, &changed));
     assert_eq!(served.json("/api/settings"), changed);
     let file = std::fs::read_to_string(home.dir.join("config/lattice/config.toml")).unwrap();
     assert!(file.contains("model = \"opus\""), "{file}");
+    assert!(file.contains("open_code_in = \"zed\""), "{file}");
     let mut wrong = changed.clone();
     wrong["concurrency"] = json!(99);
     let (status, refused) = served.call("PUT", "/api/settings", &wrong);
@@ -716,6 +719,10 @@ fn the_settings_are_read_checked_and_saved() {
             .contains("concurrency is 99"),
         "{refused}"
     );
+    let mut nowhere = changed.clone();
+    nowhere["open_code_in"] = json!("notepad");
+    let (status, refused) = served.call("PUT", "/api/settings", &nowhere);
+    assert_eq!(status, 400, "{refused}");
     let (status, refused) = served.call("PUT", "/api/settings", &json!({"modle": "opus"}));
     assert_eq!(status, 400, "{refused}");
     let body = changed.to_string();

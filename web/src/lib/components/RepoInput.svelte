@@ -115,7 +115,7 @@
     cursor: pointer;
   }
   .models label.on {
-    background: var(--card);
+    background: color-mix(in srgb, var(--text) 12%, var(--panel));
     color: var(--text);
   }
   .models input {

@@ -1,5 +1,6 @@
 <!-- "On this page": the sections, and the subsections of the one being read, with the entry in view lit as the
-     reader scrolls; at its foot when the wiki was written and at which commit. After deepwiki-by-cc's
+     reader scrolls; at its foot when the wiki was written, at which commit, and the page's own rows (where code
+     opens). After deepwiki-by-cc's
      TableOfContents and WikiTree (MIT; see THIRD_PARTY_NOTICES.md), laid out as Code Wiki's. -->
 <script lang="ts" module>
   export interface Entry {
@@ -23,6 +24,7 @@
     commitHref,
     note,
     ongo,
+    rows,
     tools,
   }: {
     entries: Entry[];
@@ -32,6 +34,9 @@
     commitHref: string | null;
     note: string;
     ongo: (id: string) => void;
+    /** More rows for its foot. */
+    rows?: Snippet;
+    /** The theme and help, in the drawer it is on a phone. */
     tools?: Snippet;
   } = $props();
 
@@ -82,6 +87,7 @@
       <span>Commit</span>
       {#if commitHref}<a href={commitHref} target="_blank" rel="noopener noreferrer">{commit}</a>{:else}<span>{commit || '—'}</span>{/if}
     </div>
+    {@render rows?.()}
     {#if tools}<div class="drawer-tools only-phone">{@render tools()}</div>{/if}
     <p class="ai-note"><Icon name="spark" size={11} class="inline-spark" /> {note}</p>
   </div>

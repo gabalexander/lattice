@@ -51,6 +51,8 @@ export interface Repo {
   key: string;
   name: string;
   source: Source;
+  /** Where its code is on lattice's machine: the path it was given, or lattice's clone. */
+  root: string;
   versions: Version[];
   job: Job | null;
 }
@@ -63,6 +65,23 @@ export interface RepoStatus {
   job?: Job | null;
 }
 
+/** Where a click on a name in the code opens it: an editor by its link, lattice's `$VISUAL` or `$EDITOR`, or the
+ * forge (codelinks.ts). */
+export type OpenIn =
+  | 'vscode'
+  | 'cursor'
+  | 'zed'
+  | 'intellij'
+  | 'pycharm'
+  | 'goland'
+  | 'webstorm'
+  | 'clion'
+  | 'rider'
+  | 'phpstorm'
+  | 'rubymine'
+  | 'editor'
+  | 'forge';
+
 /** The settings; a model may also be a full name the config file gives, like `claude-opus-5-5`. */
 export interface Settings {
   model: string;
@@ -71,6 +90,7 @@ export interface Settings {
   ask_model: string;
   ask_budget_usd: number;
   exclude: string[];
+  open_code_in: OpenIn;
 }
 
 /** An event on an answer's stream, `POST /api/repos/<key>/ask`. */

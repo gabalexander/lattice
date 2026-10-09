@@ -9,6 +9,9 @@
   --gap: 14px;
   --left: clamp(200px, 15.8vw, 280px);
   --right: clamp(340px, 31.7vw, 560px);
+  /* The longest a line of the document's text runs, when the chat closed gives it the room; its diagrams, tables
+     and code take the whole width. */
+  --measure: 900px;
 }
 html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
 
@@ -81,7 +84,7 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
   align-items: start;
   padding: calc(var(--top) - var(--header-h)) var(--gutter) var(--gutter);
 }
-.wiki:not(.chat-open) .layout { grid-template-columns: var(--left) minmax(0, 1100px); }
+.wiki:not(.chat-open) .layout { grid-template-columns: var(--left) minmax(0, 1fr); }
 
 .wiki .outline {
   position: sticky;
@@ -102,7 +105,7 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
   padding: 0 4px 8px 13px;
   overscroll-behavior: contain;
 }
-.wiki .outline-list a { display: block; color: var(--text); text-decoration: none; font-size: 14px; line-height: 21px; padding: 6px 0 7px; border-radius: 4px; }
+.wiki .outline-list a { display: block; color: var(--outline-text); text-decoration: none; font-size: 14px; line-height: 20px; padding: 6px 0; border-radius: 4px; }
 .wiki .outline-list a:hover { color: var(--link); }
 .wiki .outline-list a.active { color: var(--outline-active); }
 .wiki .outline-list ol { display: none; padding-left: 25px; }
@@ -111,6 +114,27 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
 .wiki .foot-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0 6px; }
 .wiki .foot-row + .foot-row { border-top: 1px solid var(--rule); }
 .wiki .foot-row a { color: var(--link); }
+.wiki .foot-row label { flex: none; }
+.wiki .foot-row .open-in {
+  min-width: 0;
+  max-width: 62%;
+  appearance: none;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--link);
+  text-align: right;
+  text-overflow: ellipsis;
+  padding: 0 14px 0 0;
+  cursor: pointer;
+  /* A chevron, drawn in the link's colour. */
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: right 4px center, right 0 center;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+.wiki .foot-row .open-in:hover { text-decoration: underline; }
+.wiki .foot-row .open-in option, .wiki .foot-row .open-in optgroup { color: var(--text); background: var(--menu-bg); }
 .wiki .ai-note { margin: 8px 0 0; font-size: 11.5px; line-height: 16px; text-align: center; color: var(--text-2); }
 .wiki .drawer-tools { gap: 8px; padding-top: 12px; }
 .wiki .scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 35; }
@@ -118,6 +142,7 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
 /* ---- The document ------------------------------------------------------------------------------------ */
 
 .wiki .doc {
+  color: var(--doc-text);
   background: var(--panel);
   border: 1px solid var(--panel-line);
   border-radius: 16px;
@@ -129,7 +154,7 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
 .wiki .title-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; row-gap: 10px; }
 .wiki .title-row .grow { flex: 1 1 0; }
 .wiki .doc-meta { display: flex; align-items: center; gap: 8px; margin-top: 12px; min-width: 0; container: doc-meta / inline-size; }
-.wiki .doc-head h1 { font: 400 26px/34px var(--font-display); margin: 0; overflow-wrap: anywhere; }
+.wiki .doc-head h1 { font: 400 26px/32px var(--font-display); margin: 0; overflow-wrap: anywhere; }
 .wiki .badge {
   display: inline-flex;
   align-items: center;
@@ -167,16 +192,15 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
 .wiki .banner a { white-space: nowrap; }
 
 .wiki .doc-body { outline: none; }
-.wiki .doc-body h2 { font: 500 24px/32px var(--font-display); margin: 56px 0 16px; }
-.wiki .doc-body h3 { font: 500 18.72px/28px var(--font-display); margin: 44px 0 16px; }
-.wiki .doc-body h4 { font: 500 16px/26px var(--font-display); margin: 28px 0 8px; }
-.wiki .doc-body h5, .wiki .doc-body h6 { font: 500 14px/24px var(--font-display); margin: 24px 0 6px; }
-.wiki .doc-body .sec:first-of-type > h2 { margin-top: 32px; }
+.wiki .doc-body h2 { font: 500 24px/28px var(--font-display); margin: 44px 0 20px; }
+.wiki .doc-body h3 { font: 500 18.72px/28px var(--font-display); margin: 44px 0 20px; }
+.wiki .doc-body h4 { font: 500 16px/24px var(--font-display); margin: 20px 0; }
+.wiki .doc-body h5, .wiki .doc-body h6 { font: 500 14px/24px var(--font-display); margin: 20px 0; }
 .wiki .heading { display: flex; align-items: center; gap: 8px; scroll-margin-top: calc(var(--header-h) + 8px); }
 .wiki .heading .anchor {
   flex: none;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: 0;
   background: none;
@@ -188,34 +212,52 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
 }
 .wiki .heading .anchor:hover { background: var(--hover); color: var(--text); }
 
-.wiki .overview-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 25px; align-items: start; }
-.wiki .overview-grid > .diagram-card { margin: 4px 0 0; aspect-ratio: 20 / 21; }
-.wiki .overview-grid.no-diagram { grid-template-columns: minmax(0, 1fr); }
+/* The overview's diagram floats at its start, as Code Wiki's does, and the text runs beside it, then on under
+   it the whole width; in an overview too narrow for text beside it, it's a card above the text. The overview
+   holds its float, and keeps to the measure. */
+.wiki .overview { container: overview / inline-size; max-width: var(--measure); }
+.wiki .overview > .diagram-card { float: left; width: 50%; margin: 0 24px 24px 0; aspect-ratio: 20 / 21; }
+.wiki .overview .prose .diagram-card { clear: both; }
+.wiki .overview .prose > :last-child { margin-bottom: 0; }
+@container overview (width < 600px) {
+  .wiki .overview > .diagram-card { float: none; width: 100%; margin: 0 0 24px; aspect-ratio: 27 / 20; }
+}
 .wiki .notice { color: var(--text-2); }
 
 /* ---- Prose, here and in the chat ------------------------------------------------------------------- */
 
+/* Code Wiki's text: 14px on 28px lines, 24px after each paragraph and each item of a list, lists indented 40px;
+   the document's lines no longer than the measure. The chat keeps its own, closer, spacing. */
 .wiki .prose p { margin: 0 0 16px; }
 .wiki .prose ul, .wiki .prose ol { margin: 0 0 16px; padding-left: 26px; }
 .wiki .prose li { margin: 2px 0; }
 .wiki .prose li > ul, .wiki .prose li > ol { margin: 2px 0; }
+.wiki .doc-body .prose p { margin: 0 0 24px; }
+.wiki .doc-body .prose ul, .wiki .doc-body .prose ol { margin: 0; padding-left: 40px; }
+.wiki .doc-body .prose li { margin: 0; }
+.wiki .doc-body .prose li:not(:has(> p)) { margin: 0 0 24px; }
+.wiki .doc-body .prose li > ul, .wiki .doc-body .prose li > ol { margin: 0; }
+.wiki .doc-body .prose > :is(p, ul, ol, blockquote, h4, h5, h6, hr) { max-width: var(--measure); }
 .wiki .prose li.task { list-style: none; margin-left: -20px; }
 .wiki .prose li.task input { margin: 0 6px 0 0; vertical-align: -2px; }
-.wiki .prose code, .wiki .help code, .wiki .chat-static code {
-  font: 500 11px/1 var(--font-code);
+/* Code is 11px Google Sans Code at 600, in the text's colour; a name that links into the code is a chip. */
+.wiki .prose code { font: 600 11px/1 var(--font-code); overflow-wrap: anywhere; }
+.wiki .prose a.code-link:not(.citation) > code, .wiki .help code, .wiki .chat-static code {
+  display: inline-block;
+  max-width: 100%;
+  font: 600 11px/16px var(--font-code);
   color: var(--code-fg);
   background: var(--code-bg);
   padding: 4px;
   border-radius: 4px;
   overflow-wrap: anywhere;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
 }
 .wiki .prose a.code-link { text-decoration: none; cursor: pointer; }
 .wiki .prose a.code-link:not(:has(code)) { text-decoration: underline dotted; text-underline-offset: 3px; }
 .wiki .prose a.code-link code { transition: background-color 0.12s; }
-.wiki .prose a.code-link:hover code { background: var(--chip-hover); text-decoration: underline; text-underline-offset: 2px; }
+.wiki .prose a.code-link:not(.citation):hover > code { background: var(--chip-hover); text-decoration: underline; text-underline-offset: 2px; }
 .wiki .prose a.code-link:hover { text-decoration: underline; }
+.wiki .prose a.citation code { font: inherit; color: inherit; }
 .wiki .prose a.citation {
   display: inline-block;
   font: 500 11px/18px var(--font-code);
@@ -229,7 +271,7 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
 .wiki .prose a.citation:hover { color: var(--link); border-color: var(--link); text-decoration: none; }
 .wiki .prose p.sources { font-size: 12.5px; line-height: 22px; color: var(--text-3); border-top: 1px solid color-mix(in srgb, var(--rule) 60%, transparent); padding-top: 10px; margin-top: 20px; }
 .wiki .prose p.sources code { font-size: 10.5px; }
-.wiki .prose strong { font-weight: 600; }
+.wiki .prose strong { font-weight: 500; }
 .wiki .prose hr { border: 0; border-top: 1px solid var(--rule); margin: 24px 0; }
 .wiki .prose blockquote { margin: 0 0 16px; padding: 0 0 0 16px; border-left: 3px solid var(--rule); color: var(--text-2); }
 .wiki .prose h1, .wiki .prose h2, .wiki .prose h3 { font-family: var(--font-display); font-weight: 500; }
@@ -252,20 +294,23 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
 .wiki .hljs-type, .wiki .hljs-built_in, .wiki .hljs-title.class_, .wiki .hljs-attr, .wiki .hljs-attribute, .wiki .hljs-variable.language_ { color: var(--tok-t); }
 .wiki .hljs-meta, .wiki .hljs-deletion { color: var(--tok-c); }
 .wiki .hljs-deletion { color: var(--error); }
-.wiki .table-wrap { overflow-x: auto; margin: 0 0 16px; }
-.wiki .prose table { border-collapse: collapse; font-size: 14px; line-height: 22px; min-width: 50%; }
-.wiki .prose th, .wiki .prose td { border-bottom: 1px solid var(--rule); padding: 7px 14px 7px 0; text-align: left; vertical-align: top; }
-.wiki .prose th { font-weight: 500; color: var(--text-2); }
+.wiki .table-wrap { overflow-x: auto; margin: 0 0 24px; }
+.wiki .msg .table-wrap { margin-bottom: 12px; }
+.wiki .prose table { border-collapse: collapse; font-size: 14px; line-height: 24px; min-width: 50%; background: var(--card); border-radius: 4px 4px 0 0; }
+.wiki .prose th, .wiki .prose td { border-bottom: 1px solid var(--card-line); padding: 8px 0 8px 16px; max-width: 75ch; text-align: left; vertical-align: top; }
+.wiki .prose th:last-child, .wiki .prose td:last-child { padding-right: 16px; }
+.wiki .prose th { font-weight: 500; }
 
 /* ---- Diagram cards ---------------------------------------------------------------------------------- */
 
 .wiki .diagram-card {
   position: relative;
-  margin: 16px 0 24px;
+  margin: 0 0 24px;
   width: 100%;
   aspect-ratio: 27 / 20;
   max-height: 560px;
   background: var(--card);
+  border: 1px solid var(--card-line);
   border-radius: 8px;
   overflow: hidden;
   contain: layout paint;
@@ -452,7 +497,6 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
   min-height: 58px;
   padding: 0 9px 0 26px;
 }
-:root[data-resolved-theme='light'] .wiki .chat-form { border-color: var(--rule); }
 .wiki .chat-form:focus-within { border-color: var(--accent); }
 .wiki .chat-form textarea {
   flex: 1 1 auto;
@@ -531,10 +575,9 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
   .wiki .doc { padding: 18px 16px 48px; border-radius: 12px; min-height: 0; }
   .wiki .doc-head { gap: 10px; }
   .wiki .doc-head h1 { font-size: 22px; line-height: 30px; }
-  .wiki .doc-body h2 { font-size: 21px; line-height: 28px; margin-top: 44px; }
+  .wiki .doc-body h2 { font-size: 21px; line-height: 28px; }
   .wiki .doc-body h3 { font-size: 17px; line-height: 26px; margin-top: 36px; }
-  .wiki .overview-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .wiki .overview-grid > .diagram-card, .wiki .diagram-card { aspect-ratio: 4 / 3.4; }
+  .wiki .overview > .diagram-card, .wiki .diagram-card { aspect-ratio: 4 / 3.4; }
   .wiki .diagram-view { inset: 12px 12px 44px; }
   .wiki .diagram-card .zoom-btn { right: 6px; bottom: 6px; }
   .wiki .diagram-card .caption { left: 12px; bottom: 12px; }
