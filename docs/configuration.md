@@ -47,6 +47,7 @@ cap how much of it one build or one question takes.
 | `~/.local/share/lattice/repos/<key>/checkout/` | The clone of a git repository; a local one is read where it is |
 | `~/.local/share/lattice/repos/<key>/v<n>/` | Version `n` of its wiki: `wiki.json`, `build.json` (the build's bookkeeping) and `build.log` |
 | `~/.local/share/lattice/repos/<key>/work/` | The build going on, or the one that was cut short, which a resume carries on |
+| `~/.local/share/lattice/repos/<key>/tree/` | A clean clone of the commit a build reads, for a local repository with changes not committed (see [generation.md](generation.md)) |
 | `~/.cache/lattice/downloads/` | mermaid, which draws the diagrams, downloaded once at a pinned version and checked against its SHA-256 (`$XDG_CACHE_HOME`) |
 | `~/.cache/lattice/index/<name>-<hash>/` | What the [symbol index](index.md) read of a checkout, by each file's blob, and what its indexers said, so the next build reads only what changed; it's read again when it's gone |
 

@@ -1,0 +1,182 @@
+[
+	{
+		"id": "socket-selection",
+		"question": "How does a crystal command decide which daemon socket to connect to, and where does a named server's socket live by default?",
+		"answer": "It takes the first of these that is set: `-S`/`--socket` (a path), `--server <name>`, `$CRYSTAL_SOCKET` (which crystal sets in every session so crystal run inside one reaches its own daemon), `$CRYSTAL_SERVER`, and otherwise the server called `default`. A server's socket is `<name>.sock` in `$XDG_RUNTIME_DIR/crystal`, or in `/tmp/crystal-<uid>` when there is no runtime dir (as on macOS).",
+		"evidence": "src/socket.rs:14-74",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "version-mismatch",
+		"question": "What does the crystal daemon do with a request sent by a crystal binary of a different version from its own?",
+		"answer": "Every request carries its sender's version, and the daemon checks it before reading the request. If the versions differ, it does not handle the request and answers with an error: run `crystal restart-server` to restart the daemon on this crystal, or, if the client is the older one, quit and run crystal again. Only `Shutdown` and `Handover` requests go through whatever the version, because they are how another version gets the daemon out of the way or onto itself.",
+		"evidence": "src/protocol.rs:1-9,1912-1916; src/daemon.rs:394-408,4839-4861",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "handover-exec",
+		"question": "How does `crystal restart-server` move a running daemon onto a newly installed crystal binary without stopping its sessions?",
+		"answer": "The daemon execs the new crystal in its own process. The pid stays the same, so the programs it started are still its children. The listening socket, each session's PTY and background tasks' pipes to `claude` stay open across the exec. The rest of its state (screens, history, flow runs and so on) is written to a file that is unlinked at once and passed on as an open descriptor. It refuses up front if the new crystal reads a different `handover::FORMAT`; the client then restarts the daemon cold, and the sessions start again from the database.",
+		"evidence": "src/handover.rs:1-82",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "state-database",
+		"question": "Where and in what form does the crystal daemon persist its state, such as sessions to restart, tasks and the event log?",
+		"answer": "In a SQLite database, `crystal.db`. For the default server it is in `$XDG_STATE_HOME/crystal` (`~/.local/state/crystal` by default), and for other servers in `servers/<name>` under that directory (or beside the socket when the socket is given by its path). It is opened in WAL mode with `synchronous=NORMAL` and migrated through `PRAGMA user_version`. Settings stay in the config file, and project memory lives in a separate `memory.db`.",
+		"evidence": "src/state.rs:66-72,150-216; src/db.rs:289-344; src/memory.rs:977",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "event-bus",
+		"question": "How are crystal's events produced and delivered to the things that listen for them?",
+		"answer": "Every event goes through the daemon's `Bus`. `Bus::emit` gives it a `seq` that only ever increases, writes it to the `events` table of the daemon's database, and sends it to every subscription whose filter accepts it: clients streaming over the socket (such as `crystal events` or a TUI) and the plugins' hooks. Anything outside the daemon reports an event with `Request::Emit`, and the log can be read without a daemon.",
+		"evidence": "src/event_log.rs:1-15,126-147",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "background-task-claude",
+		"question": "How does crystal run a background task with Claude Code, and how do the task's permission prompts reach the user?",
+		"answer": "Each task gets one `claude -p --input-format stream-json --output-format stream-json --verbose --permission-prompt-tool stdio` process. The prompt and every follow-up go to it as JSON lines on standard input, one turn each, and crystal draws the JSON events it emits onto the session's screen as a transcript. A tool call that its permission mode and rules don't settle arrives as a `can_use_tool` control request, and the turn waits until the user's answer goes back as a `control_response`.",
+		"evidence": "src/claude_stream.rs:1-43; src/task.rs:1-21",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "agent-screen-rules",
+		"question": "How does crystal tell from an agent's screen whether it is working, waiting on the user or settled, and how can a user change that?",
+		"answer": "It uses a TOML rule file for each agent, bundled from the repository's `agents/` directory. Each rule has `looks` (working, waiting, settled or skip), a `priority` (the highest matching rule wins, the first in the file on a tie), a `region`, and tests (`contains`, `regex`, `line_regex`, with `all`/`any`/`not`). When no rule matches, the agent is settled. A file in the `agents` directory beside the user's config replaces the bundled file for that agent or adds a new agent, and `crystal agent explain` shows which rule produced a reading.",
+		"evidence": "src/agent_rules.rs:1-23; agents/claude.toml; src/agent_screen.rs:1-10",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "plugin-event-hooks",
+		"question": "How does a crystal plugin react to events, and what does its hook command receive?",
+		"answer": "A plugin's `plugin.toml` declares `[[events]]` hooks (and `[[startup]]` commands). The daemon subscribes to its event bus and runs a plugin's matching commands one at a time, in the order the events happened, on a thread of that plugin's own; their output goes to the plugin's log. Each hook gets the event as JSON on standard input and in `CRYSTAL_EVENT_JSON`, its name in `CRYSTAL_EVENT`, and a one-line description in `CRYSTAL_EVENT_TEXT`. Installed plugins live in `~/.config/crystal/plugins`; a project's own plugins live in its `.crystal/plugins` and hear only that project's events.",
+		"evidence": "src/plugin_hooks.rs:1-19,48-131; src/plugins.rs:44-45,599-603",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "forge-cli",
+		"question": "How does crystal fetch pull requests and issues from GitHub or GitLab, and how does it decide which one a project is on?",
+		"answer": "Every call goes through the forge's own command-line tool, `gh` or `glab`, run with a timeout, so the user's existing login is used and crystal never sees a token. The forge is chosen from the host of the project's remote: github.com or a host `gh` is logged in to means GitHub, and gitlab.com or a host named in glab's config means GitLab. This is read from git config and the two CLIs' files, without going over the network.",
+		"evidence": "src/forge.rs:1-20,41-43",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "memory-mcp-server",
+		"question": "How can a Claude Code session started by crystal search the project's memory on its own?",
+		"answer": "When memory is enabled, crystal passes it the MCP server `crystal mcp` through `--mcp-config` and adds that server's tools to `--allowedTools`. The server speaks JSON-RPC 2.0 over stdio and offers two tools, `memory_search` and `memory_show`. It reads the memory database itself, so it needs no daemon.",
+		"evidence": "src/mcp.rs:1-12; src/daemon.rs:4300-4327",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "terminal-emulation",
+		"question": "How does crystal emulate its sessions' terminals, and which processes keep a copy of each screen?",
+		"answer": "`src/vt.rs` wraps `alacritty_terminal` and is the only module that uses it. The daemon keeps one screen per session and answers the program's terminal queries from it. Each viewer (a TUI pane or `crystal attach`) keeps its own screen fed the same output, which it uses to draw, for copy mode (Alacritty's vi mode) and to find links.",
+		"evidence": "src/vt.rs:1-16",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "agent-hooks-integration",
+		"question": "How does crystal get hook reports from Claude Code, both for sessions it starts itself and for a `claude` the user types into a shell?",
+		"answer": "Claude Code that crystal starts is given crystal's own hooks on its command line with `--settings`, so the user's files are never needed. For an agent typed into a session's shell, `crystal integration install` adds `crystal hook <agent> --installed` beside the user's own hooks in the agent's settings: Claude Code's `settings.json`, or Codex's `hooks.json` plus `[features] hooks = true`. That installed hook does nothing outside a crystal session, or for an agent crystal started with its own hooks.",
+		"evidence": "src/integration.rs:1-25; src/agents.rs:142-169",
+		"tags": [
+			"floor"
+		]
+	},
+	{
+		"id": "send-message-limits",
+		"question": "What limits and checks apply when one crystal session sends a message to another with `crystal send`?",
+		"answer": "The message is tidied (control characters removed, tabs made spaces), cut to 8 KiB with `…`, and headed by a `[crystal] Message from session \"<name>\"` line that names the sender's task if one is open. A session may send at most 20 messages in a sliding 60-second window. A message that only acknowledges (under 20 characters made only of ok/thanks/received/ack/done/noted, or with no letters or digits, like 👍) is refused. Messages from the user, a script or the TUI are not tidied, headed or counted.",
+		"evidence": "src/messages.rs:1-130",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "send-enter-retries",
+		"question": "When `crystal send` types into an agent sitting at its prompt, when is Enter pressed, when is the text judged not taken, and what exit code signals that?",
+		"answer": "The text goes in first (as a bracketed paste if the program asked for that), and Enter is sent on its own once the text shows on screen and has held still for 150 ms, or after 1 s regardless. Each Enter gets 2 s for the agent to start a turn or change its screen; otherwise Enter is pressed again, 3 times in all. After that the send has stalled, and `crystal` exits 3 (a wait that times out exits 2).",
+		"evidence": "src/typing.rs:1-23,109-140; src/main.rs:2390-2428",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "subagent-turn-hold",
+		"question": "When an agent's turn ends while its background subagents are still running, how long does crystal keep treating the agent as still working?",
+		"answer": "The turn is held, with the agent still at work, until one of three things happens: a turn of the agent's own starts; all subagents have stopped and the agent hasn't taken up their work within 60 seconds; or no subagent has shown any sign of life for 15 minutes. The daemon checks held turns four times a second.",
+		"evidence": "src/subagents.rs:1-43",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "plugin-timeout-and-pause",
+		"question": "What happens when a plugin's hook commands hang or keep failing?",
+		"answer": "A hook or startup command is stopped once it runs past its timeout: 30 seconds unless the hook or the plugin sets `timeout_secs` (up to an hour). After 5 failures in a row, the plugin is paused, with a notice and a `plugin.paused` event, until the user turns it on again.",
+		"evidence": "src/plugin_hooks.rs:11-19,41-42,161-180,326-338; src/plugin_manifest.rs:27-31,340-346",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "event-log-retention",
+		"question": "How long does crystal keep its event log, and what happens to an event subscriber that falls behind?",
+		"answer": "The log keeps `[events] keep_days` days (30 by default) and never more than 50,000 events; past that, the oldest go until half that many remain. The daemon prunes it as it starts, every hour, and whenever it holds too many. A subscriber that falls 4096 events behind is dropped rather than holding up the daemon, and the events it missed are lost (the plugins' follower subscribes again). An event that can't be written down still reaches its subscribers.",
+		"evidence": "src/event_log.rs:12-35,126-185; src/config.rs:835-840; src/plugin_hooks.rs:48-70",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "memory-hybrid-ranking",
+		"question": "How does crystal's memory search combine keyword search and search by meaning to rank entries?",
+		"answer": "An FTS5 bm25 ranking (columns weighted 1.0 for the text, 2.0 for the files, 0.5 for the words of merged entries) and a vector ranking each give their best 50 entries. These are merged by reciprocal rank fusion with K = 60: each ranking adds 1/(60 + place), and ties go to the entry seen most recently. The reranker then reads the best 20 again, and entries beyond those 20 are not found.",
+		"evidence": "src/memory.rs:232-255,3242-3265",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "idle-session-stop",
+		"question": "When does the crystal daemon stop an idle session, and what keeps it from doing so?",
+		"answer": "`[sessions] stop_idle_after` (30m by default, `off` to disable) is how long an agent may sit idle at its prompt, with nobody watching or typing, before it is stopped. Idle terminals are stopped only when `stop_idle_terminals` is on (off by default). A session is not stopped while a job its agent cut loose from the terminal runs under it (for an idle shell, anything running under it). A stopped session stays in the list and starts again where it was, an agent in its conversation, when it's wanted (for example by `crystal send`).",
+		"evidence": "src/config.rs:969-1029; src/daemon.rs:3611-3645; src/session.rs:1238-1264",
+		"tags": [
+			"depth"
+		]
+	},
+	{
+		"id": "layout-command-relay",
+		"question": "When a layout command such as `crystal tab` or `crystal pane` runs, which TUI carries it out, how long does the command wait, and what happens if no TUI is open?",
+		"answer": "The daemon passes the order to the TUI used most recently, over the connection the TUI opened to take orders (`TakeLayoutOrders`), and waits up to 5 seconds for its answer, failing with \"the TUI didn't answer within 5s\". Just after the daemon starts, it first waits up to 2 seconds for TUIs to reconnect. If no TUI is open, the relay fails with `NoTui` and the daemon carries the order out itself on the tabs the TUIs keep.",
+		"evidence": "src/layout_relay.rs:1-48,139-160; src/daemon.rs:2529",
+		"tags": [
+			"depth"
+		]
+	}
+]

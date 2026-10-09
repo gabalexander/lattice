@@ -13,6 +13,18 @@ https://github.com/andyhtran/deepwiki-by-cc
 `src/lib/server/ai/sandbox-preflight.ts`): the retries of a run that failed for a passing reason, the reading
 of the tokens a run used, and the check that Claude can read a file before a long run.
 
+The generator (`src/gen/`) adapts its prompts (`src/lib/server/prompts/shared.ts`, `outline.ts`, `page.ts` and
+`update.ts`, in `src/gen/plan.rs` and `src/gen/write.rs`): the outline from the file tree and the README with seed
+files a page, the research steps of a writer that explores from them and verifies what it says, a section's hub,
+the opening element by a page's kind, the `Sources` lines and inline citations, the diagram rules, the failure
+field and the sync's choice to leave a page as it is. It adapts its outline normalizer
+(`src/lib/server/ai/outline-normalizer.ts`, in `src/gen/plan.rs`), its scanner's filters
+(`src/lib/server/pipeline/scanner.ts`, in `src/gen/files.rs`), its diagram policy, mermaid repairs and fence
+rules (`src/lib/server/ai/diagram-policy.ts`, `src/lib/mermaid-sanitize.ts` and `src/lib/markdown-fences.ts`, in
+`src/gen/diagram.rs` and `src/gen/fences.rs`), its page checks (`src/lib/server/ai/page-validation.ts` and the
+heading clean-up of `src/lib/server/ai/generator.ts`, in `src/gen/validate.rs`), its sync, resume and caps
+(`src/lib/server/queue/handlers.ts`, in `src/gen/build.rs`), and its eval harness (`evals/`, in `evals/eval.rs`).
+
 The web app (`web/`) follows its app's flow and components (`RepoInput`, `JobProgress`, `WikiTree`,
 `TableOfContents`, `ThemeToggle`, `MermaidDiagram` and its versions with Sync, Resume and Regenerate), and adapts
 its fence rules (`src/lib/markdown-fences.ts`, in `web/src/lib/fences.ts`), its mermaid repairs
@@ -49,11 +61,12 @@ https://github.com/gabalexander/crystal
 
 Much of lattice started in crystal: the modules that say so at their top (`ask`, `claude`, `clipboard`,
 `config`, `db`, `download`, `editor`, `export`, `glob`, `http`, `index`, `links`, `mermaid`, `output`,
-`printable`, `secrets`, `server`, `shell`), `install.sh`, the workflows, the Makefile and the Homebrew formula.
-crystal's `src/mermaid/` is itself adapted from docket's `docket-mermaid` crate, by the same author. The web
-app's wiki page (`web/src/lib/wiki/`, `web/src/lib/markdown.ts`, `web/src/lib/mermaid.ts`, `web/mock/synth.mjs`,
-`web/scripts/perf.mjs`) is carried over from crystal's (`assets/wiki/`): its layout, its markdown renderer and
-tests, mermaid's theme, the lazy drawing and the zoom.
+`printable`, `secrets`, `server`, `shell`, `wiki`, and the generator, `gen`, from crystal's wiki generator),
+`install.sh`, the workflows, the Makefile and the Homebrew formula. crystal's `src/mermaid/` is itself adapted
+from docket's `docket-mermaid` crate, by the same author. The web app's wiki page (`web/src/lib/wiki/`,
+`web/src/lib/markdown.ts`, `web/src/lib/mermaid.ts`, `web/mock/synth.mjs`, `web/scripts/perf.mjs`) is carried
+over from crystal's (`assets/wiki/`): its layout, its markdown renderer and tests, mermaid's theme, the lazy
+drawing and the zoom.
 
 ```
 MIT License

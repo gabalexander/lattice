@@ -34,6 +34,7 @@ lattice sync .            # write again what changed since its last version
 | [docs/cli.md](docs/cli.md) | The commands, and how a repository is named |
 | [docs/web.md](docs/web.md) | The web app: its pages, what it asks of the server, and how to build it |
 | [docs/server.md](docs/server.md) | The server, its API and its jobs, and how it keeps other sites out |
+| [docs/generation.md](docs/generation.md) | How a wiki is written, checked and synced, what it costs, and what goes where |
 | [docs/configuration.md](docs/configuration.md) | The settings, and where lattice keeps its data |
 | [docs/docker.md](docs/docker.md) | lattice in Docker: the image, Claude Code's login, private repositories |
 | [docs/claude.md](docs/claude.md) | How lattice runs Claude Code: read-only, locked down, with a budget |

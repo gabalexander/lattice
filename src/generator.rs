@@ -12,7 +12,7 @@
 use crate::cancel::Cancel;
 use crate::config::Config;
 use crate::db::{JobKind, Progress, Repo, Version};
-use anyhow::{Result, bail};
+use anyhow::Result;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -62,17 +62,7 @@ pub trait Generator: Send + Sync {
     fn run(&self, job: &JobSpec, report: &mut dyn FnMut(Report), cancel: &Cancel) -> Result<Built>;
 }
 
-/// The generator this lattice has.
+/// The generator this lattice has: Claude Code's ([`crate::r#gen`]).
 pub fn current() -> Arc<dyn Generator> {
-    Arc::new(NotYet)
-}
-
-/// The generator until the real one lands: every job it's given fails,
-/// saying so.
-pub struct NotYet;
-
-impl Generator for NotYet {
-    fn run(&self, _: &JobSpec, _: &mut dyn FnMut(Report), _: &Cancel) -> Result<Built> {
-        bail!("not yet: the generator comes in lattice's next release")
-    }
+    Arc::new(crate::r#gen::Claude)
 }

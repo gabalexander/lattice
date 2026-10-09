@@ -2,3 +2,5 @@
 /web/node_modules
 /web/build
 /web/.svelte-kit
+/evals/.data
+/evals/results

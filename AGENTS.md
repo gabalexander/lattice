@@ -21,6 +21,8 @@ page for each part of it.
   `--app build` serves the built app as lattice does, for screenshots and `web/scripts/perf.mjs`
   (`docs/web.md`).
 - Install: `make install`: the web app and a release build, into `~/.local/bin`
+- The eval (`docs/evals.md`), which spends through Claude Code: `cargo run --release --example eval -- build
+  <repo> <label>`, then `score <label>`, `pairwise <a> <b>` and `report <label>...`
 - The container: `docker build -t lattice:dev .`, then `docker/smoke.sh lattice:dev` tries it
   (`docs/docker.md`)
 
@@ -102,7 +104,31 @@ in.
   and each job's `Feed` that its pages follow; what a job may be asked for (`submit`), refused with an HTTP
   status
 - `src/generator.rs`: the `Generator` a job runs (`JobSpec` in, `Report`s along the way, `Built` out), and
-  `current()`, the one this lattice has: `NotYet` until the generator lands
+  `current()`, the one this lattice has: `gen::Claude`
+- `src/gen/`: the generator (`docs/generation.md`), a module named `r#gen`, `gen` being a word Rust keeps;
+  adapted from crystal's wiki generator and deepwiki-by-cc
+  - `mod.rs`: `Claude`, the `Generator` that writes with Claude Code
+  - `build.rs`: a build's phases (plan, write, link, overview), a sync from a version and a resume of a
+    build that stopped, the writers `concurrency` at once, the caps on each run of Claude and on the build,
+    what's written kept in `build.json` as it goes
+  - `plan.rs`: the outline: the planner's prompt and schema, its answer read and put in order (paths it
+    doesn't have dropped, overshoot trimmed, every source file covered), a subsection's kind, the entry
+    points
+  - `write.rs`: what each writer is told (subsection, section hub, overview, sync, fix) and the shape of its
+    answer; the files a writer starts from, with what they define and the commits that touched them
+  - `check.rs`: links into the code and citations checked against the commit, moved where they belong or
+    dropped, paths and credentials taken out; and the linker, a code span to the one thing it names
+  - `diagram.rs`: a diagram made what mermaid draws and checked with `crate::mermaid`, and how many a text
+    may draw, near-duplicates out; `fences.rs`: fences by CommonMark's rules, as the web app reads them
+  - `validate.rs`: whether an answer is a text at all (a failure reported, a refusal, a tool failure written
+    into the page) and its tidying
+  - `files.rs`: the files at the commit, less what nobody reads (vendored, built, lock files, binaries,
+    credentials; generated and minified marked), which are source, and the `exclude` globs; what they
+    define, and where, is the symbol index's (`src/index/`)
+  - `prose.rs`: links and code spans in markdown with where they are; `repo.rs`: git (a clean tree of the
+    commit, logs, diffs, where a line moved to, the forge's addresses); `book.rs`: `build.json`
+- `src/wiki.rs`: `wiki.json`, version 1 of the contract between the generator, the server and the web app,
+  and `CodeLink`, a `code:` link read
 - `src/repos.rs`: the repositories: added by what the user typed and found again by it, where their code is,
   cloned (with `gh` for GitHub when it's there) or fetched with the user's git and never a password prompt,
   at the remote's default branch, where a branch is now, and removed with their files
@@ -186,9 +212,14 @@ in.
   `.scip` that rust-analyzer wrote of the Rust one
 - `tests/server.rs`: the API end to end, against a server of the test's own, with a fake generator, a fake
   `claude` and a fake editor
+- `tests/gen.rs`: the generator end to end, with a fake `claude` answering from fixtures: a build, a resume,
+  a budget reached, a sync, and a build and a sync through the job API
 - `tests/release.rs`: the release's archives named alike everywhere
 - `tests/mermaid/`: diagrams the mermaid tests read
-- `docs/`: a page for each part: `cli.md`, `server.md`, `configuration.md`, `claude.md`, `web.md`, `index.md`
+- `evals/`: the eval (`docs/evals.md`): `config.json` the golden repositories pinned to commits, their core
+  files and topics; `questions/` their golden questions; `eval.rs` the runner, `cargo run --example eval`
+- `docs/`: a page for each part: `cli.md`, `server.md`, `configuration.md`, `claude.md`, `web.md`,
+  `index.md`, `generation.md`, `evals.md`; `eval-results/` the evals that decided something
 - `install.sh`, `packaging/homebrew/`, `.github/workflows/`: installing and releasing
 - `Dockerfile`, `docker-compose.yml`, `docker/`: the container: lattice, git and Claude Code on Alpine, built in
   stages, with its entrypoint (ssh set up for private repositories), `git-credential-env` (a

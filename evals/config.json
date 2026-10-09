@@ -1,0 +1,254 @@
+{
+	"judgeModel": "sonnet",
+	"repos": [
+		{
+			"name": "crystal",
+			"url": "https://github.com/gabalexander/crystal.git",
+			"sha": "11b2542a5b8e7bea1c60d7d14f452b274ae7d084",
+			"coreFiles": [
+				"src/daemon.rs",
+				"src/protocol.rs",
+				"src/session.rs",
+				"src/handover.rs",
+				"src/vt.rs",
+				"src/event_log.rs",
+				"src/events.rs",
+				"src/db.rs",
+				"src/task.rs",
+				"src/memory.rs",
+				"src/agent_rules.rs",
+				"src/plugin_hooks.rs",
+				"src/config.rs",
+				"src/tui/mod.rs",
+				"src/tui/app.rs"
+			],
+			"pairwiseTopics": [
+				{
+					"id": "daemon-protocol-handover",
+					"title": "The daemon, its socket protocol and handover",
+					"keywords": [
+						"daemon",
+						"socket",
+						"Request",
+						"protocol::version",
+						"restart-server",
+						"handover::FORMAT",
+						"exec"
+					]
+				},
+				{
+					"id": "sessions-terminals",
+					"title": "Sessions, PTYs and terminal screens",
+					"keywords": [
+						"Session",
+						"PTY",
+						"alacritty_terminal",
+						"vt.rs",
+						"viewer",
+						"attach",
+						"OutputRing"
+					]
+				},
+				{
+					"id": "agent-status",
+					"title": "How crystal knows what an agent is doing",
+					"keywords": [
+						"hooks",
+						"agent_rules",
+						"ScreenWatch",
+						"working",
+						"waiting",
+						"settled",
+						"crystal integration"
+					]
+				},
+				{
+					"id": "driving-agents",
+					"title": "Driving agents from other sessions and scripts",
+					"keywords": [
+						"crystal send",
+						"wait",
+						"Delivery",
+						"Stalled",
+						"TimedOut",
+						"messages.rs",
+						"typing.rs"
+					]
+				},
+				{
+					"id": "background-tasks",
+					"title": "Tasks and background Claude Code runs",
+					"keywords": [
+						"claude -p",
+						"stream-json",
+						"can_use_tool",
+						"crystal done",
+						"follow-up",
+						"permission",
+						"transcript"
+					]
+				},
+				{
+					"id": "project-memory",
+					"title": "Project memory, search and the distiller",
+					"keywords": [
+						"memory.db",
+						"FTS5",
+						"bm25",
+						"reciprocal rank fusion",
+						"distiller",
+						"memory_search",
+						"recall"
+					]
+				},
+				{
+					"id": "events-plugins",
+					"title": "The event log and plugins",
+					"keywords": [
+						"Bus",
+						"seq",
+						"events table",
+						"plugin.toml",
+						"CRYSTAL_EVENT_JSON",
+						"plugin.paused",
+						"Subscription"
+					]
+				},
+				{
+					"id": "tui-layout",
+					"title": "The TUI, its tabs and layout commands",
+					"keywords": [
+						"sidebar",
+						"tabs",
+						"split_tree",
+						"keymap",
+						"layout_relay",
+						"NoTui",
+						"event loop"
+					]
+				}
+			]
+		},
+		{
+			"name": "docket",
+			"url": "https://github.com/gabalexander/docket.git",
+			"sha": "94f466d56256bcd4cd42db677ddd56f904b53081",
+			"coreFiles": [
+				"crates/docket/src/main.rs",
+				"crates/docket-core/src/protocol.rs",
+				"crates/docket-core/src/codec.rs",
+				"crates/docket-core/src/settings.rs",
+				"crates/docket-daemon/src/lib.rs",
+				"crates/docket-daemon/src/server.rs",
+				"crates/docket-daemon/src/registry.rs",
+				"crates/docket-daemon/src/store.rs",
+				"crates/docket-daemon/src/pty/mod.rs",
+				"crates/docket-daemon/src/hooks/installer.rs",
+				"crates/docket-daemon/src/status.rs",
+				"crates/docket-daemon/src/tasks.rs",
+				"crates/docket-daemon/src/git.rs",
+				"crates/docket-tui/src/ipc.rs",
+				"crates/docket-tui/src/event_loop.rs"
+			],
+			"pairwiseTopics": [
+				{
+					"id": "ipc-protocol",
+					"title": "Client–daemon IPC and wire protocol",
+					"keywords": [
+						"PROTOCOL_VERSION",
+						"canonical JSON",
+						"Hello",
+						"Incompatible",
+						"frame kind",
+						"unix socket"
+					]
+				},
+				{
+					"id": "pty-attach",
+					"title": "PTY ownership, attach and scrollback replay",
+					"keywords": [
+						"PtySession",
+						"scrollback ring",
+						"Attach",
+						"Scrollback",
+						"Output",
+						"idle reaper",
+						"prewarm"
+					]
+				},
+				{
+					"id": "agent-status",
+					"title": "Agent status detection through CLI hooks",
+					"keywords": [
+						"_docketManaged",
+						"settings.local.json",
+						"Stop",
+						"SubagentStart",
+						"bearer token",
+						"status machine"
+					]
+				},
+				{
+					"id": "worktrees-git",
+					"title": "Projects, worktrees and git integration",
+					"keywords": [
+						"git worktree add",
+						"origin/HEAD",
+						"worktree sync",
+						"worktreeCreateHook",
+						"root worktree",
+						"worktree_base_branch"
+					]
+				},
+				{
+					"id": "tasks-flows",
+					"title": "Tasks, flow runs and handoff",
+					"keywords": [
+						"docket done",
+						"waiting_human",
+						"TaskStatus",
+						"flow_runs",
+						"gate",
+						"handoff.md"
+					]
+				},
+				{
+					"id": "persistence-config",
+					"title": "Persistence and settings",
+					"keywords": [
+						"SQLite",
+						"docket.db",
+						"migrations",
+						"config.json",
+						"config.local.json",
+						"data dir"
+					]
+				},
+				{
+					"id": "headless-claude",
+					"title": "Headless sessions and the Claude stream-json client",
+					"keywords": [
+						"claude -p",
+						"stream-json",
+						"docket-claude",
+						"can_use_tool",
+						"transcript ring",
+						"pending_permission"
+					]
+				},
+				{
+					"id": "tui-event-loop",
+					"title": "TUI event loop and rendering",
+					"keywords": [
+						"ratatui",
+						"event_loop",
+						"FramePacer",
+						"vt100",
+						"optimistic update",
+						"view_jobs"
+					]
+				}
+			]
+		}
+	]
+}
