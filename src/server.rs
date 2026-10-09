@@ -610,8 +610,8 @@ impl Server {
         }
     }
 
-    /// `GET /api/repos`: every repository with its versions and its latest
-    /// job.
+    /// `GET /api/repos`: every repository with where its code is on this
+    /// machine, its versions and its latest job.
     fn repos(&self) -> Reply {
         let listed = (|| -> Result<Vec<Value>> {
             let db = self.db();
@@ -623,6 +623,7 @@ impl Server {
                     "key": repo.key,
                     "name": repo.name,
                     "source": repo.source,
+                    "root": repos::root(&repo),
                     "versions": versions,
                     "job": job,
                 }));

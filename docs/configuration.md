@@ -12,6 +12,7 @@ budget_usd = 0.0          # the most one build may spend, in US dollars; 0, no l
 ask_model = "sonnet"      # the model that answers the chat
 ask_budget_usd = 0.5      # the most one question may spend
 exclude = ["vendor/**"]   # files left out of every wiki, as .gitignore writes them
+open_code_in = "vscode"   # where a click on a name in the code opens its file
 
 [index]                   # the symbol index the wiki's code links come from
 precise = true            # run the SCIP indexers installed here
@@ -29,6 +30,7 @@ paths_only = ["vendor/", "third_party/", "node_modules/", "testdata/"]
 | `ask_model` | `sonnet` | The model that answers questions in the chat. |
 | `ask_budget_usd` | `0.5` | The most one question may spend. |
 | `exclude` | `[]` | Globs of files no wiki reads or links to, beyond what `.gitignore` leaves out. |
+| `open_code_in` | `vscode` | Where a click on a name in the code opens its file at its line: `vscode`, `cursor` or `zed`, by their links (`vscode://file/<path>:<line>`); `intellij`, `pycharm`, `goland`, `webstorm`, `clion`, `rider`, `phpstorm` or `rubymine`, by the JetBrains Toolbox App's links (`jetbrains://<ide>/navigate/reference?project=…&path=…`), which need the Toolbox App and the project open or opened lately in the IDE, found by its directory's name or its forge; `editor`, `$VISUAL` or `$EDITOR` started where lattice runs; or `forge`, the file on its forge. The editors open on the machine the browser is on, at the path the code has on lattice's: its own folder, or lattice's clone. ⌘ or Ctrl-click always opens the forge. The wiki's page changes it too, at the foot of its outline. |
 | `[index] precise` | `true` | Whether the SCIP indexers installed here (rust-analyzer, scip-go, scip-typescript, scip-python, scip-java, scip-clang) run for the [symbol index](index.md); without them every language is read by its grammar. |
 | `[index] indexer_timeout_secs` | `900` | The most one indexer may run, in seconds, before it's stopped and its languages left to their grammars. |
 | `[index] indexer_memory_mb` | `8192` | The most memory one indexer may take, every process under it counted, in megabytes, before it's stopped. |

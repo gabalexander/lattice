@@ -9,6 +9,7 @@
 //! ask_model = "sonnet"      # the model that answers the chat
 //! ask_budget_usd = 0.5      # the most one question may spend
 //! exclude = ["vendor/**"]   # files left out of every wiki
+//! open_code_in = "vscode"   # where a click on a name in the code opens it
 //!
 //! [index]                   # the symbol index links come from
 //! precise = true            # run the SCIP indexers installed here
@@ -52,6 +53,9 @@ pub struct Config {
     /// Files left out of every wiki, as globs the way `.gitignore` writes
     /// them: `vendor/`, `*.pb.go`, `docs/**/*.svg`.
     pub exclude: Vec<String>,
+    /// Where the wiki's page opens a file when a name in the code is
+    /// clicked. Only the page reads it; lattice keeps it with the rest.
+    pub open_code_in: OpenCodeIn,
     /// How the symbol index the wiki's links come from is built: `[index]`
     /// in the file. Its `exclude` is never read from there: it's the one
     /// above, which [`Config::index_settings`] gives it.
@@ -67,9 +71,49 @@ impl Default for Config {
             ask_model: "sonnet".to_string(),
             ask_budget_usd: 0.5,
             exclude: Vec::new(),
+            open_code_in: OpenCodeIn::default(),
             index: IndexSettings::default(),
         }
     }
+}
+
+/// Where a click on a name in the code opens its file, at its line. The
+/// editors are opened by their URL schemes from the browser, so they open
+/// on the machine the browser is on; `Editor` is the one lattice starts
+/// where it runs; `Forge` is the file on GitHub or GitLab, at the commit
+/// the wiki was written from.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OpenCodeIn {
+    /// Visual Studio Code: `vscode://file/<path>:<line>`.
+    #[default]
+    Vscode,
+    /// Cursor: `cursor://file/<path>:<line>`.
+    Cursor,
+    /// Zed: `zed://file/<path>:<line>`.
+    Zed,
+    /// IntelliJ IDEA, through the JetBrains Toolbox App's `jetbrains://`
+    /// links, which find the project open or opened lately by its name or
+    /// its remote; and the other JetBrains IDEs below the same way.
+    Intellij,
+    /// PyCharm.
+    Pycharm,
+    /// GoLand.
+    Goland,
+    /// WebStorm.
+    Webstorm,
+    /// CLion.
+    Clion,
+    /// Rider.
+    Rider,
+    /// PhpStorm.
+    Phpstorm,
+    /// RubyMine.
+    Rubymine,
+    /// `$VISUAL` or `$EDITOR`, started by lattice where it runs.
+    Editor,
+    /// The repository's forge, in the browser.
+    Forge,
 }
 
 impl Config {
@@ -204,9 +248,31 @@ mod tests {
                 ask_model: "claude-haiku-5-5".into(),
                 ask_budget_usd: 0.25,
                 exclude: vec!["vendor/**".into(), "*.min.js".into()],
+                open_code_in: OpenCodeIn::Vscode,
                 index: IndexSettings::default(),
             }
         );
+    }
+
+    #[test]
+    fn code_opens_in_vs_code_unless_the_file_names_another_place() {
+        assert_eq!(Config::default().open_code_in, OpenCodeIn::Vscode);
+        let open_in = |value: &str| {
+            Config::from_text(&format!("open_code_in = \"{value}\"")).map(|c| c.open_code_in)
+        };
+        assert_eq!(open_in("zed").unwrap(), OpenCodeIn::Zed);
+        assert_eq!(open_in("goland").unwrap(), OpenCodeIn::Goland);
+        assert_eq!(open_in("editor").unwrap(), OpenCodeIn::Editor);
+        assert_eq!(open_in("forge").unwrap(), OpenCodeIn::Forge);
+        let refused = format!("{:#}", open_in("notepad").unwrap_err());
+        assert!(refused.contains("unknown variant `notepad`"), "{refused}");
+        assert!(refused.contains("`vscode`"), "{refused}");
+        let saved = toml::to_string(&Config {
+            open_code_in: OpenCodeIn::Cursor,
+            ..Config::default()
+        })
+        .unwrap();
+        assert!(saved.contains("open_code_in = \"cursor\""), "{saved}");
     }
 
     #[test]

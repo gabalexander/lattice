@@ -1,10 +1,11 @@
 <!-- Settings: what a wiki is written with (the model, how many subsections at once, what a build may spend,
-     the files left out) and what the chat answers with. lattice keeps them in its config file
+     the files left out), where a click on its code opens it, and what the chat answers with. lattice keeps them in its config file
      (~/.config/lattice/config.toml); this page reads and writes them through the API. -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
   import AppHeader from '$lib/components/AppHeader.svelte';
+  import { OPEN_IN } from '$lib/codelinks';
   import { toast } from '$lib/toast.svelte';
   import type { Settings } from '$lib/types';
 
@@ -94,6 +95,23 @@
           <label for="exclude">Left out</label>
           <textarea id="exclude" rows="5" bind:value={exclude} spellcheck="false" placeholder={'vendor/**\n*.min.js'} aria-describedby="exclude-hint"></textarea>
           <p class="hint" id="exclude-hint">A glob a line, beyond what .gitignore leaves out already.</p>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="reading">
+        <h2 id="reading">Reading a wiki</h2>
+        <div class="field">
+          <label for="open-in">Open code in</label>
+          <select id="open-in" bind:value={form.open_code_in} aria-describedby="open-in-hint">
+            {#each OPEN_IN as { group, places } (group)}
+              <optgroup label={group}>
+                {#each places as place (place.value)}<option value={place.value}>{place.name}</option>{/each}
+              </optgroup>
+            {/each}
+          </select>
+          <p class="hint" id="open-in-hint">
+            Where a click on a name in the code opens its file, at its line; ⌘ or Ctrl-click opens it on the forge. VS Code, Cursor, Zed and the JetBrains IDEs open on the machine your browser is on, from where the code is on lattice's; the JetBrains IDEs need the Toolbox App, and the project open or opened lately.
+          </p>
         </div>
       </section>
 
@@ -235,7 +253,18 @@
     background: var(--bg);
     color: var(--text-3);
   }
+  select {
+    height: 44px;
+    min-width: min(100%, 320px);
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid var(--input-line);
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+  }
   .money:focus-within,
+  select:focus,
   textarea:focus {
     border-color: var(--accent);
   }

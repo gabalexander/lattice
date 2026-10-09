@@ -22,7 +22,7 @@ Errors are JSON, `{"message": "..."}`, with the status that fits: 400 for a requ
 
 | Call | What it does |
 | --- | --- |
-| `GET /api/repos` | Every repository: `[{"key", "name", "source": {"kind": "local", "path"} or {"kind": "git", "url"}, "versions": [VERSION], "job": JOB or null}]`, its latest job. |
+| `GET /api/repos` | Every repository: `[{"key", "name", "source": {"kind": "local", "path"} or {"kind": "git", "url"}, "root", "versions": [VERSION], "job": JOB or null}]`: `root` is where its code is here, the path it was given or lattice's clone, which the page builds the editors' links from; `job` is its latest. |
 | `POST /api/repos` `{"source"}` | Adds a repository by a path (from your home directory unless it's absolute), a git URL or `owner/repo`: `{"key"}`. The same repository added again is the same key. |
 | `DELETE /api/repos/<key>` | Forgets it, stopping its job, and takes away its clone and its versions. A local repository is never touched. 204. |
 | `POST /api/repos/<key>/jobs` `{"kind", "model", "concurrency"}` | Asks for a job: `kind` is `build`, `sync`, `resume` or `regenerate`; `model` and `concurrency` are null for the settings'. Gives JOB. 409 while the repository has a job not over, for a sync with no version, and for a resume with nothing to resume. |
@@ -32,7 +32,7 @@ Errors are JSON, `{"message": "..."}`, with the status that fits: 400 for a requ
 | `GET /api/repos/<key>/wiki?version=<n>` | A version's `wiki.json`, the latest without `version`. 404 before the first. |
 | `GET /api/repos/<key>/status` | `{"stale", "head", "commit", "job"}`: whether the branch has moved on (`head`) since the latest version (`commit`). A git repository is fetched now and then for it. |
 | `POST /api/repos/<key>/ask` `{"question", "conversation", "section"}` | The chat, as `text/event-stream`: `delta` `{"text"}` as the answer is written, `tool` `{"name", "path", "pattern"}` as Claude reads the code, then `done` `{"conversation", "cost_usd"}` or `error` `{"message"}`. `conversation` follows up in an earlier answer's; `section` is the id of the section being read. |
-| `GET /api/repos/<key>/open?path=&line=` | Opens the file in your editor at the line: `$VISUAL`, or else `$EDITOR`, when it has a window of its own (VS Code and its kin, Zed, Sublime Text, gvim, MacVim). 204. |
+| `GET /api/repos/<key>/open?path=&line=` | Opens the file in your editor at the line: `$VISUAL`, or else `$EDITOR`, when it has a window of its own (VS Code and its kin, Zed, Sublime Text, gvim, MacVim). The page asks it when `open_code_in` is `editor`; the other editors it opens by their links. 204. |
 | `GET /api/settings`, `PUT /api/settings` | The settings, as [configuration.md](configuration.md) lists them; a `PUT` takes them all, checks them and saves them, and gives them back. |
 | `GET /api/server` | `{"lattice": "<version>"}`, for `lattice open` to know its own. |
 

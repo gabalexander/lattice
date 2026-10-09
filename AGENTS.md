@@ -144,7 +144,7 @@ in.
 - `src/cancel.rs`: `Cancel`, how a job or a chat is asked to stop, shared by its clones, and a wait that ends
   when it is
 - `src/config.rs`: the settings in `config.toml`: model, concurrency, budget, the chat's model and budget,
-  excludes, and `[index]`; read, checked, a model's name never read as an option
+  excludes, where the page opens code, and `[index]`; read, checked, a model's name never read as an option
 - `src/db.rs`: the SQLite database (WAL, migrations by `user_version`): repositories under their keys, the
   versions of each one's wiki, and the jobs that build them, queued, running and over, with their progress;
   a job left running by a server that stopped is failed as it starts
@@ -194,7 +194,8 @@ in.
     `settings/`; `src/params/` the keys and numbers they take
   - `src/lib/api.ts`: the HTTP API, a function a call; `types.ts`: what it and wiki.json say
   - `src/lib/markdown.ts`: the wiki's markdown, rendered small and strict; `fences.ts`: fences by CommonMark's
-    rules, shared with the generator's check; `codelinks.ts`: where a link into the code goes
+    rules, shared with the generator's check; `codelinks.ts`: where a link into the code goes, the editors'
+    links among them
   - `src/lib/mermaid.ts`: mermaid, loaded and its diagrams drawn as they come near; `mermaid-sanitize.ts`: the
     repairs made to a diagram first, `mermaid-keywords.ts` the names that are mermaid's keywords renamed;
     `highlight.ts`: code blocks coloured by highlight.js, loaded when needed

@@ -128,7 +128,7 @@
 
 {#if wiki && repo}
   {#key wiki}
-    <WikiView {wiki} mode="serve" repoKey={key} {otherRepos} {setHash}>
+    <WikiView {wiki} mode="serve" repoKey={key} codeRoot={repo.root} {otherRepos} {setHash}>
       {#snippet headTools()}
         <VersionMenu
           repoKey={key}

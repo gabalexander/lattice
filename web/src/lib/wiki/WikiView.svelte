@@ -1,7 +1,8 @@
 <!-- A wiki's page, as Code Wiki lays one out: the header (find, theme, help, share, chat), the outline on the
-     left following the reader down, the document in the middle (the title, what made it, the overview beside
-     its diagram, then every section and subsection with its diagram card), and the chat on the right. The app
-     serves it at /<key>, with the versions and the jobs around it (RepoWiki.svelte); an export shows it alone.
+     left following the reader down, the document in the middle (the title, what made it, the overview wrapping
+     around its diagram, then every section and subsection with its diagram card), and the chat on the right,
+     whose room the document takes when it's closed. The app serves it at /<key>, with the versions and the jobs
+     around it (RepoWiki.svelte); an export shows it alone.
      Carried over from crystal's wiki page (assets/wiki/app.js). -->
 <script lang="ts">
   import './wiki.css';
@@ -10,13 +11,13 @@
   import Icon from '$lib/components/Icon.svelte';
   import Logo from '$lib/components/Logo.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-  import { clickAction, codeTarget, commitUrl, forgeOf, openQuery, shortSha, type Mode } from '$lib/codelinks';
+  import { OPEN_IN, clickAction, codeTarget, commitUrl, editorUrl, forgeOf, openQuery, placeName, shortSha, type Mode } from '$lib/codelinks';
   import { formatDate, modelName, money } from '$lib/format';
   import { plainText, type MarkdownOptions } from '$lib/markdown';
   import type { Drawing } from '$lib/mermaid';
   import { theme } from '$lib/theme.svelte';
   import { copyText, toast } from '$lib/toast.svelte';
-  import type { Wiki } from '$lib/types';
+  import type { OpenIn, Wiki } from '$lib/types';
   import Chat from './Chat.svelte';
   import DiagramCard from './DiagramCard.svelte';
   import FindBox, { type FindItem, type FindRepo } from './FindBox.svelte';
@@ -29,6 +30,7 @@
     wiki,
     mode,
     repoKey = null,
+    codeRoot = null,
     home = '/',
     otherRepos,
     setHash = (hash: string, push: boolean) => history[push ? 'pushState' : 'replaceState'](history.state, '', hash),
@@ -39,6 +41,8 @@
     mode: Mode;
     /** The repo's key, for asking and opening files; null in an export. */
     repoKey?: string | null;
+    /** Where the repo's code is on lattice's machine, for the editors' links. */
+    codeRoot?: string | null;
     /** Where the mark leads: the list of wikis, or nowhere in an export. */
     home?: string | null;
     otherRepos?: () => Promise<FindRepo[]>;
@@ -56,7 +60,9 @@
   const repo = $derived(wiki.repo);
   const generated = $derived(wiki.generated || { at: '' });
   const name = $derived(repo.name || 'Repository');
-  const options: MarkdownOptions = $derived({ code: codeTarget(repo, mode, mac), headingOffset: 3 });
+  /** Where a click on a name in the code opens it, from the settings. */
+  let openIn = $state<OpenIn>('vscode');
+  const options: MarkdownOptions = $derived({ code: codeTarget(repo, mode, mac, openIn), headingOffset: 3 });
   const sectionOptions: MarkdownOptions = $derived({ ...options, headingOffset: 2 });
 
   // Ids are the page's anchors; a wiki that repeats one has the repeat numbered rather than lost.
@@ -192,25 +198,58 @@
 
   // ---- Clicks ---------------------------------------------------------------------------------------------
 
-  async function openInEditor(link: HTMLElement) {
+  // A link to an editor on this machine is followed as a link the reader clicked, which leaves the page where it
+  // is, and asks first, the first time, in the browsers that ask.
+  function follow(url: string) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.click();
+  }
+
+  async function openCode(link: HTMLElement) {
     const path = link.dataset.path || '';
-    const line = link.dataset.line;
+    const line = Number(link.dataset.line) || null;
+    const where = `${path}${line ? `:${line}` : ''}`;
+    if (openIn === 'forge') {
+      toast.show(`There's no forge to open ${path} on: choose an editor in “Open code in”`);
+      return;
+    }
+    const url = codeRoot ? editorUrl(openIn, { root: codeRoot, origin: repo.web_url }, path, line) : null;
+    if (url) {
+      follow(url);
+      toast.show(`Opening ${where} in ${placeName(openIn)}`);
+      return;
+    }
     if (!repoKey) return;
     try {
       await api.open(repoKey, openQuery(path, line));
-      toast.show(`Opened ${path}${line ? `:${line}` : ''} in your editor`);
+      toast.show(`Opened ${where} in your editor`);
     } catch (err) {
       toast.show((err as { status?: number }).status === 404 ? `${path} isn't in the repository` : `Couldn't open ${path}: ${(err as Error).message}`);
+    }
+  }
+
+  // Kept with the other settings, so every page and the settings' own say the same.
+  async function chooseOpenIn(place: OpenIn) {
+    const was = openIn;
+    openIn = place;
+    try {
+      const settings = await api.settings();
+      await api.saveSettings({ ...settings, open_code_in: place });
+      toast.show(place === 'forge' ? 'Code opens on the forge now' : `Code opens in ${placeName(place)} now`);
+    } catch (err) {
+      openIn = was;
+      toast.show(`Couldn't save it: ${(err as Error).message}`);
     }
   }
 
   function onCodeClick(event: MouseEvent) {
     const link = (event.target as Element).closest<HTMLAnchorElement>('a.code-link');
     if (!link) return;
-    const action = clickAction(mode, { meta: event.metaKey, ctrl: event.ctrlKey, shift: event.shiftKey, alt: event.altKey }, link.hasAttribute('href'));
+    const action = clickAction(mode, openIn, { meta: event.metaKey, ctrl: event.ctrlKey, shift: event.shiftKey, alt: event.altKey }, link.hasAttribute('href'));
     if (action === 'browser') return;
     event.preventDefault();
-    if (action === 'editor') void openInEditor(link);
+    if (action === 'open') void openCode(link);
   }
 
   function onDocClick(event: MouseEvent) {
@@ -242,10 +281,10 @@
 
   function onKey(event: KeyboardEvent) {
     const target = event.target as Element;
-    const link = target.closest?.('a.code-link:not([href])');
-    if (link && event.key === 'Enter') {
+    const link = target.closest?.<HTMLElement>('a.code-link');
+    if (link && event.key === 'Enter' && clickAction(mode, openIn, { meta: false, ctrl: false, shift: false, alt: false }, link.hasAttribute('href')) === 'open') {
       event.preventDefault();
-      void openInEditor(link as HTMLElement);
+      void openCode(link);
       return;
     }
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
@@ -274,6 +313,13 @@
 
   onMount(() => {
     setChat(isWide() && stored(CHAT_KEY) !== 'closed', false);
+    // Without the settings, code opens in VS Code.
+    if (mode === 'serve') {
+      api.settings().then(
+        (settings) => (openIn = settings.open_code_in ?? 'vscode'),
+        () => {},
+      );
+    }
     let unwatch = watchHeadings();
     const id = decodeURIComponent(location.hash.slice(1));
     const el = id ? document.getElementById(id) : null;
@@ -355,6 +401,20 @@
         note={`${generated.by || 'Claude'} can make mistakes, so double-check it.`}
         ongo={(id) => goTo(id)}
       >
+        {#snippet rows()}
+          {#if mode === 'serve'}
+            <div class="foot-row">
+              <label for="lw-open-in">Open code in</label>
+              <select id="lw-open-in" class="open-in" value={openIn} onchange={(e) => chooseOpenIn(e.currentTarget.value as OpenIn)}>
+                {#each OPEN_IN as { group, places } (group)}
+                  <optgroup label={group}>
+                    {#each places as place (place.value)}<option value={place.value}>{place.short ?? place.name}</option>{/each}
+                  </optgroup>
+                {/each}
+              </select>
+            </div>
+          {/if}
+        {/snippet}
         {#snippet tools()}
           <button class="pill small" type="button" onclick={() => theme.cycle()}><Icon name="contrast" size={18} />Theme: {theme.pref}</button>
           <button class="pill small" type="button" onclick={() => (helpOpen = true)}><Icon name="help" size={18} />Help</button>
@@ -392,12 +452,10 @@
           <p class="notice">This wiki says it's version {wiki.version}, which this page doesn't know; some of it may not show.</p>
         {/if}
         <section class="overview" aria-label="Overview">
-          <div class="overview-grid" class:no-diagram={!wiki.overview?.diagram?.mermaid}>
-            {#if wiki.overview?.diagram?.mermaid}
-              <DiagramCard src={wiki.overview.diagram.mermaid} caption={wiki.overview.diagram.caption || `${name} at a glance`} {onzoom} />
-            {/if}
-            <Prose md={wiki.overview?.summary_md || ''} options={sectionOptions} {onzoom} />
-          </div>
+          {#if wiki.overview?.diagram?.mermaid}
+            <DiagramCard src={wiki.overview.diagram.mermaid} caption={wiki.overview.diagram.caption || `${name} at a glance`} {onzoom} />
+          {/if}
+          <Prose md={wiki.overview?.summary_md || ''} options={sectionOptions} {onzoom} />
         </section>
         {#each layout.sections as section (section.id)}
           <section class="sec">
@@ -439,7 +497,7 @@
   </div>
 
   {#if zoom}<ZoomDialog drawing={zoom.drawing} caption={zoom.caption} onclose={() => (zoom = null)} />{/if}
-  {#if helpOpen}<HelpDialog {made} {mode} onclose={() => (helpOpen = false)} />{/if}
+  {#if helpOpen}<HelpDialog {made} {mode} place={openIn === 'forge' ? 'on the forge' : `in ${placeName(openIn)}`} onclose={() => (helpOpen = false)} />{/if}
 </div>
 
 <style>

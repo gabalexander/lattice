@@ -11,7 +11,7 @@ running lattice needs no Node.
 | --- | --- |
 | `/` | A box taking a folder, a git URL or GitHub's `owner/repo`, the model (Sonnet or Opus) and Generate; below it every wiki as a card: its name, where it comes from, its latest version's commit, age, model and cost, and while a job runs for it, its progress, live. |
 | `/jobs/<id>` | A job: its phase (plan, write, link, overview), how far along, the subsection it's writing, what it has cost, the subsections written, its log, and Cancel. When it's done it moves on to the version it made. |
-| `/<key>` | A repo's latest wiki: the outline on the left following the reader, the document in the middle (the overview beside its diagram, then each section and subsection with its diagram card, zoomable), links into the code, and the chat on the right. Above the document, the version shown (every build is kept, with its model), Sync, Resume and Regenerate, and a banner for a job running, a version made since, or code that has moved on. |
+| `/<key>` | A repo's latest wiki: the outline on the left following the reader, the document in the middle (the overview running beside its diagram and on under it, then each section and subsection with its diagram card, zoomable), links into the code, and the chat on the right; closing the chat gives the document its room, its text kept to 900px a line and its diagrams, tables and code taking the width, and the chat stays closed or open in that browser. Above the document, the version shown (every build is kept, with its model), Sync, Resume and Regenerate, and a banner for a job running, a version made since, or code that has moved on. |
 | `/<key>/v/<n>` | The same, at version `n`. |
 | `/settings` | The settings `docs/configuration.md` lists. |
 
@@ -19,8 +19,14 @@ A repo with no version yet shows its build, or a button to start one. Keys never
 (`settings`, `jobs`, `api`, `assets`, `_app`, `fonts`, `export`).
 
 On a wiki's page, `/` finds a section or another wiki, `c` shows or hides the chat, `j` and `k` go to the next
-or previous section, and Esc closes what's open. A name in code opens the file at its line in `$VISUAL` or
-`$EDITOR`; with ⌘ or Ctrl it opens on the forge, at the commit the wiki was written from.
+or previous section, and Esc closes what's open. A name in code opens the file at its line where the settings'
+`open_code_in` says ([configuration.md](configuration.md)), VS Code unless it says otherwise, and "Open code in" at
+the foot of the outline changes it; with ⌘ or Ctrl it opens on the forge, at the commit the wiki was written
+from.
+
+The page's text is set as Code Wiki's: 14px on 28px lines, 24px after a paragraph and after each item of a list,
+headings at 24 and 18.72px with 44px above and 20px below, code 11px Google Sans Code at 600, a name linking into
+the code a chip with 4px corners and padding.
 
 ## What it asks lattice
 
@@ -29,7 +35,7 @@ the app shows as it is.
 
 | Request | Answer |
 | --- | --- |
-| `GET /api/repos` | `[{key, name, source: {kind: "local", path} or {kind: "git", url}, versions: [{n, commit, branch, model, at, cost_usd}], job}]` |
+| `GET /api/repos` | `[{key, name, source: {kind: "local", path} or {kind: "git", url}, root, versions: [{n, commit, branch, model, at, cost_usd}], job}]`, `root` where its code is on lattice's machine |
 | `POST /api/repos` `{source}` | `{key}`: the repo, added or found (a git source is cloned into lattice's data directory by its first job) |
 | `DELETE /api/repos/<key>` | 204 |
 | `POST /api/repos/<key>/jobs` `{kind, model, concurrency}` | the job: `kind` is `build`, `sync`, `resume` or `regenerate`; `model` and `concurrency` null for the settings' |
@@ -39,8 +45,8 @@ the app shows as it is.
 | `GET /api/repos/<key>/wiki[?version=<n>]` | the version's `wiki.json` (below), the latest without `version`; 404 when there's none |
 | `GET /api/repos/<key>/status` | `{stale, head, commit, job}`: stale when the repo's branch has moved on since the latest version |
 | `POST /api/repos/<key>/ask` `{question, conversation, section}` | `text/event-stream`: `tool` `{name, path}` as Claude reads, `delta` `{text}` as it answers, then `done` `{conversation, cost_usd}` or `error` `{message}` |
-| `GET /api/repos/<key>/open?path=&line=` | 204, the file opened in the editor; 404 for a path outside the repo |
-| `GET` / `PUT /api/settings` | `{model, concurrency, budget_usd, ask_model, ask_budget_usd, exclude}` |
+| `GET /api/repos/<key>/open?path=&line=` | 204, the file opened in `$VISUAL` or `$EDITOR`; 404 for a path outside the repo |
+| `GET` / `PUT /api/settings` | `{model, concurrency, budget_usd, ask_model, ask_budget_usd, exclude, open_code_in, index}` |
 
 `wiki.json` is version 1 of the generator's contract: `{version, repo: {name, root, commit, branch, web_url,
 code_url}, generated: {at, by, model, cost_usd}, overview: {summary_md, diagram}, sections: [{id, title,
@@ -86,7 +92,7 @@ crystal with two versions and its code moved on since, a synthetic one of 16 sec
 run, stream and make a version; the chat streams an answer, reading files as it goes ("error" in a question
 makes it fail, "slow" slows it); settings save and are checked. It checks Host and Origin as lattice does.
 `--pace 5` runs its jobs five times slower; `--app build` serves the built app as lattice does, for
-screenshots and measuring.
+screenshots and measuring; `--wiki <file>` shows that wiki.json as crystal's, a real one to look at.
 
 ```sh
 npm --prefix web run check        # svelte-check: types, and Svelte's accessibility checks, warnings failing it
@@ -124,4 +130,7 @@ there in under half a second.
   draws. One mermaid still can't draw shows its source. Their colours come from the theme's tokens over what mermaid draws, so a change of
   theme needs no redraw.
 - Fonts: Google Sans Flex stands in for Google Sans and Google Sans Text, which can't be bundled, beside Google
-  Sans Code; both are under the SIL Open Font License.
+  Sans Code; both are under the SIL Open Font License. The Flex bundled is its 18pt optical size: at the headings'
+  sizes its widths are Google Sans's, and at 14px within 1% of Google Sans Text's, with the same x-height (its
+  ascenders are a little shorter); its smaller optical sizes, Text's in spirit, only run wider, 5% at 14pt.
+  Google Sans Code is its variable font from 400 to 700, for code at Code Wiki's 600.
