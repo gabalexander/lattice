@@ -1,0 +1,2 @@
+# The rest of what's built is ignored at the root.
+/mock/.cache/

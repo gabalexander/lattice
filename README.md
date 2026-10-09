@@ -32,6 +32,7 @@ lattice sync .            # write again what changed since its last version
 | Page | What's in it |
 | --- | --- |
 | [docs/cli.md](docs/cli.md) | The commands, and how a repository is named |
+| [docs/web.md](docs/web.md) | The web app: its pages, what it asks of the server, and how to build it |
 | [docs/server.md](docs/server.md) | The server, its API and its jobs, and how it keeps other sites out |
 | [docs/configuration.md](docs/configuration.md) | The settings, and where lattice keeps its data |
 | [docs/claude.md](docs/claude.md) | How lattice runs Claude Code: read-only, locked down, with a budget |
