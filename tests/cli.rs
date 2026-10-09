@@ -6,8 +6,9 @@
 
 use lattice::cancel::Cancel;
 use lattice::claude::{self, Ask, Event, Reason, Tools};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
@@ -117,6 +118,38 @@ echo '{{"type":"result","subtype":"success","is_error":false,"result":"'"$said"'
     fn run(&self, args: &[&str]) -> Output {
         self.command(args).output().unwrap()
     }
+
+    /// Runs git in `dir`, as the tests need it, and gives what it printed.
+    fn git(&self, dir: &Path, args: &[&str]) -> String {
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args([
+                "-c",
+                "user.name=lattice",
+                "-c",
+                "user.email=lattice@example.com",
+            ])
+            .args(args)
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "git {args:?}: {}", stderr(&out));
+        stdout(&out).trim().to_string()
+    }
+
+    /// A git repository of the test's own called `name`, under `code/`,
+    /// with a commit.
+    fn repo(&self, name: &str) -> PathBuf {
+        let root = self.dir.path().join("code").join(name);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join("src/x.rs"), "fn x() {}\n").unwrap();
+        self.git(&root, &["init", "-q", "-b", "main"]);
+        self.git(&root, &["add", "-A"]);
+        self.git(&root, &["commit", "-q", "-m", "first"]);
+        root
+    }
 }
 
 fn stdout(out: &Output) -> String {
@@ -147,24 +180,181 @@ fn it_says_its_version_and_its_commands() {
 }
 
 #[test]
-fn what_isn_t_here_yet_says_so_and_fails() {
+fn build_runs_a_job_here_and_status_says_how_it_went() {
     let home = Home::new();
-    for args in [
-        &["build", "golang/go"][..],
-        &["sync", "golang/go"],
-        &["status"],
-        &["serve"],
-        &["open"],
-        &["export", "go", "site"],
-    ] {
-        let out = home.run(args);
-        assert_eq!(out.status.code(), Some(1), "{args:?}");
-        assert!(
-            stderr(&out).starts_with("lattice: not yet: "),
-            "{args:?}: {}",
-            stderr(&out)
-        );
+    let said = stdout(&home.run(&["status"]));
+    assert!(said.starts_with("no repositories yet"), "{said}");
+    let root = home.repo("app");
+    let commit = home.git(&root, &["rev-parse", "HEAD"]);
+    // Until the generator lands, a build gets as far as the generator.
+    let out = home.run(&["build", root.to_str().unwrap()]);
+    assert_eq!(out.status.code(), Some(1));
+    assert_eq!(
+        stderr(&out),
+        "lattice: not yet: the generator comes in lattice's next release\n"
+    );
+    let said = stdout(&out);
+    assert!(said.contains("job 1: build of app\n"), "{said}");
+    assert!(said.contains(&format!("at {commit} on main\n")), "{said}");
+    let said = stdout(&home.run(&["status"]));
+    assert!(said.starts_with("app  app  ~/code/app\n"), "{said}");
+    assert!(
+        said.contains("  job 1: build failed: not yet: the generator comes"),
+        "{said}"
+    );
+    assert_eq!(said, stdout(&home.run(&["status", "app"])));
+    let refused = home.run(&["sync", "app"]);
+    assert_eq!(refused.status.code(), Some(1));
+    assert_eq!(
+        stderr(&refused),
+        "lattice: there's no version to sync from: build one first\n"
+    );
+    // A build killed outright leaves its job running, which holds nothing.
+    let db = lattice::db::Db::open_at(&home.dir.path().join("data/lattice/lattice.db")).unwrap();
+    let left = db
+        .add_job("app", lattice::db::JobKind::Build, None, None)
+        .unwrap();
+    assert!(db.start_job(left.id).unwrap());
+    let again = home.run(&["build", "app"]);
+    assert!(stdout(&again).contains(&format!("job {}: build of app", left.id + 1)));
+    let left = db.job(left.id).unwrap().unwrap();
+    assert_eq!(left.error.as_deref(), Some(lattice::db::INTERRUPTED));
+    let unknown = stderr(&home.run(&["status", "nothing"]));
+    assert!(
+        unknown.contains("nothing isn't one of lattice's repositories"),
+        "{unknown}"
+    );
+    let export = stderr(&home.run(&["export", "app", "site"]));
+    assert_eq!(
+        export,
+        "lattice: app has no wiki yet: `lattice build app` writes one\n"
+    );
+}
+
+#[test]
+fn serve_runs_one_server_a_data_directory_and_stops_on_sigterm() {
+    let home = Home::new();
+    let mut server = home
+        .command(&["serve", "--port", "0"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut out = BufReader::new(server.stdout.take().unwrap());
+    let mut first = String::new();
+    out.read_line(&mut first).unwrap();
+    let port = port_in(&first);
+    assert_eq!(
+        first,
+        format!("serving lattice at http://127.0.0.1:{port}/ (ctrl+c stops it)\n")
+    );
+    let (status, said) = get(port, "/api/server");
+    assert_eq!(status, 200);
+    assert!(said.contains(env!("CARGO_PKG_VERSION")), "{said}");
+    let again = home.run(&["serve", "--port", "0"]);
+    assert_eq!(again.status.code(), Some(1));
+    assert_eq!(
+        stderr(&again),
+        format!(
+            "lattice: a lattice server runs already, at http://127.0.0.1:{port}/: \
+             `lattice serve --stop` stops it\n"
+        )
+    );
+    // SAFETY: kill has no preconditions; it's the test's own server.
+    unsafe { libc::kill(server.id() as i32, libc::SIGTERM) };
+    assert!(server.wait().unwrap().success());
+    assert!(!home.dir.path().join("data/lattice/serve.json").exists());
+}
+
+#[test]
+fn open_starts_a_server_once_and_over_ssh_says_how_to_reach_it() {
+    let home = Home::new();
+    let root = home.repo("app");
+    // Over ssh, which also keeps the test from opening a browser.
+    let open = || {
+        let out = home
+            .command(&["open", root.to_str().unwrap()])
+            .env("SSH_TTY", "/dev/ttys999")
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", stderr(&out));
+        stdout(&out)
+    };
+    let said = open();
+    let url = said.lines().last().unwrap().to_string();
+    let port = port_in(&url);
+    let pid = serving_pid(&home);
+    let _server = Kill(pid);
+    assert_eq!(url, format!("http://127.0.0.1:{port}/app"));
+    assert!(
+        said.contains(&format!("ssh -L {port}:127.0.0.1:{port} ")),
+        "{said}"
+    );
+    assert_eq!(get(port, "/api/repos").0, 200);
+    assert!(
+        stdout(&home.run(&["status"])).starts_with("app  app"),
+        "it was added"
+    );
+    // Once one runs, it's the one opened.
+    assert_eq!(open().lines().last().unwrap(), url);
+    assert_eq!(serving_pid(&home), pid);
+    let stopped = home.run(&["serve", "--stop"]);
+    assert_eq!(
+        stdout(&stopped),
+        format!("stopped the lattice server on port {port}\n")
+    );
+    let stopped = home.run(&["serve", "--stop"]);
+    assert_eq!(stdout(&stopped), "no lattice server is running\n");
+}
+
+/// The port in what a server said: `http://127.0.0.1:<port>/…`.
+fn port_in(said: &str) -> u16 {
+    said.split("http://127.0.0.1:")
+        .nth(1)
+        .and_then(|rest| rest.split(['/', ' ', '\n']).next())
+        .and_then(|port| port.parse().ok())
+        .unwrap_or_else(|| panic!("it didn't say where: {said:?}"))
+}
+
+/// The pid `serve.json` says the server running has.
+fn serving_pid(home: &Home) -> i32 {
+    let serving = std::fs::read_to_string(home.dir.path().join("data/lattice/serve.json")).unwrap();
+    let serving: serde_json::Value = serde_json::from_str(&serving).unwrap();
+    serving["pid"].as_i64().unwrap() as i32
+}
+
+/// Kills the process it holds as it goes: a server a test started in the
+/// background, stopped whatever the test does.
+struct Kill(i32);
+
+impl Drop for Kill {
+    fn drop(&mut self) {
+        // SAFETY: kill has no preconditions; it's the test's own server.
+        unsafe { libc::kill(self.0, libc::SIGKILL) };
     }
+}
+
+/// What the server on `port` answers to a GET of `path`: its status and
+/// its body.
+fn get(port: u16, path: &str) -> (u16, String) {
+    let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .unwrap();
+    write!(
+        stream,
+        "GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n"
+    )
+    .unwrap();
+    let mut answer = String::new();
+    stream.read_to_string(&mut answer).unwrap();
+    let (head, body) = answer.split_once("\r\n\r\n").unwrap_or((&answer, ""));
+    let status = head
+        .split(' ')
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    (status, body.to_string())
 }
 
 #[test]

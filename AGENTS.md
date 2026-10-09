@@ -31,6 +31,9 @@ builds with the oldest Rust `Cargo.toml` promises, and runs the web app's lint, 
   uses it, so the tests can drive both.
 - Everything that runs Claude goes through `src/claude.rs`, locked down as `docs/claude.md` says. A new kind
   of run is a new `Ask`, never another way to start `claude`.
+- A job runs through `jobs::run` whoever starts it, the server or the command line, and writes a wiki
+  through the `Generator` that `generator::current()` gives.
+- The API is `docs/server.md`'s: a change to it is a change there, and to the web app's `web/src/lib/api.ts`.
 - What a command prints on standard output goes through `out!` and `outln!` (`src/output.rs`) with a `?`,
   never `print!` and `println!`, which `clippy.toml` refuses: a reader gone, like `head -1`'s, stops the
   command and lattice exits 0, where `println!` panics. What it says on standard error goes through `err!`
@@ -68,15 +71,47 @@ in.
 
 ## Layout
 
-- `src/main.rs`: the command line (clap): `serve`, `open`, `export`, `build`, `sync`, `status`, and `doctor`,
-  which checks the settings, the data, git and Claude Code, asking it to read a file
+- `src/main.rs`: the command line (clap): `serve` (and `--stop`), `open`, `export`, `build` and `sync`, which
+  run a job here through `jobs::run`, `status`, and `doctor`, which checks the settings, the data, git and
+  Claude Code, asking it to read a file
 - `src/lib.rs`: the modules, for the binary and the tests
+- `build.rs`: the web app's files under `web/build/`, when it's built, carried into the binary as
+  `web::FILES`
 - `src/claude.rs`: running Claude Code: an `Ask` (model, appended system prompt, message on standard input,
   read-only tools or none, a JSON Schema, turns, budget, a conversation forgotten, kept or resumed, text
   streamed, a time limit, retries) run locked down with stream-json, what it does told as `Event`s, its
   `Answer` or why it `Failed` with what it cost; tries again what failed for a passing reason; and
   `preflight`, the check that Claude can read a file with lattice's flags; adapted from crystal and
   deepwiki-by-cc
+- `src/server.rs`: `lattice serve` and `open`: the API (`docs/server.md`) and the web app on 127.0.0.1, a
+  thread a connection; a route for each address, the Host and Origin checks before it; a job's events
+  followed from its feed, or from what's kept of it; one server a data directory (`serve.lock`), where it is
+  in `serve.json`; `open` starting one in the background once, stopping one of another lattice, and saying
+  the `ssh -L` line over ssh; adapted from crystal's `wiki_server.rs`
+- `src/http.rs`: the HTTP/1.1 the server speaks: a request read with caps on its head and body, replies with
+  the headers every answer carries, server-sent events, and the checks that keep other sites out (Host,
+  Origin, `Sec-Fetch-Site`)
+- `src/web.rs`: the web app as the binary carries it: its files by path, its page for every address of its
+  own, or one saying it wasn't built; and the export bundle under `export/`
+- `src/jobs.rs`: running a job, the same from the server's queue and the command line (`run`): the
+  repository's build lock, `work/` and its `build.log`, the code prepared, the generator run, `work/` made
+  the next version; the server's queue (`Jobs`): one job a repository, three repositories at once, cancel,
+  and each job's `Feed` that its pages follow; what a job may be asked for (`submit`), refused with an HTTP
+  status
+- `src/generator.rs`: the `Generator` a job runs (`JobSpec` in, `Report`s along the way, `Built` out), and
+  `current()`, the one this lattice has: `NotYet` until the generator lands
+- `src/repos.rs`: the repositories: added by what the user typed and found again by it, where their code is,
+  cloned (with `gh` for GitHub when it's there) or fetched with the user's git and never a password prompt,
+  at the remote's default branch, where a branch is now, and removed with their files
+- `src/ask.rs`: the chat: a question checked, Claude told the wiki's outline and the section being read,
+  run read-only in the repository, its answer streamed as `delta`, `tool`, `done` and `error` events, and
+  stopped when the page goes; adapted from crystal's `wiki_ask.rs`
+- `src/editor.rs`: a file of a repository opened in the user's editor at a line (`$VISUAL`, `$EDITOR`), only
+  one with a window of its own, and only a file in the repository
+- `src/export.rs`: `lattice export`: a version of a wiki as a static site, the web app's bundle with the
+  wiki inlined in its page and mermaid beside its script
+- `src/signals.rs`: ctrl+c and SIGTERM caught, so a build or a server stops its `claude` runs before it
+  exits
 - `src/cancel.rs`: `Cancel`, how a job or a chat is asked to stop, shared by its clones, and a wait that ends
   when it is
 - `src/config.rs`: the settings in `config.toml`: model, concurrency, budget, the chat's model and budget,
@@ -123,8 +158,11 @@ in.
   - `static/`: the fonts with their licences, the theme set before the first paint, the icon
   - `mock/`: a stand-in for lattice's API with its fixtures, and the synthetic wiki; `scripts/perf.mjs`: the
     page measured in headless Chrome
-- `tests/cli.rs`: the binary and the runner end to end, with a fake `claude`
+- `tests/cli.rs`: the binary and the runner end to end, with a fake `claude`: `doctor`, `build` and `status`,
+  `serve` one a data directory, `open` starting one in the background
+- `tests/server.rs`: the API end to end, against a server of the test's own, with a fake generator, a fake
+  `claude` and a fake editor
 - `tests/release.rs`: the release's archives named alike everywhere
 - `tests/mermaid/`: diagrams the mermaid tests read
-- `docs/`: a page for each part: `configuration.md`, `claude.md`, `web.md`
+- `docs/`: a page for each part: `cli.md`, `server.md`, `configuration.md`, `claude.md`, `web.md`
 - `install.sh`, `packaging/homebrew/`, `.github/workflows/`: installing and releasing

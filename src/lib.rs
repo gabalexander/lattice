@@ -8,18 +8,28 @@
 //! The binary, `src/main.rs`, is its command line; everything else is
 //! here, for it and for the tests. AGENTS.md has a line on each module.
 
+pub mod ask;
 pub mod cancel;
 pub mod claude;
 pub mod clipboard;
 pub mod config;
 pub mod db;
 pub mod download;
+pub mod editor;
+pub mod export;
+pub mod generator;
+pub mod http;
+pub mod jobs;
 pub mod links;
 pub mod mermaid;
 pub mod output;
 pub mod paths;
 pub mod printable;
+pub mod repos;
 pub mod secrets;
+pub mod server;
 pub mod shell;
+pub mod signals;
 pub mod source;
 pub mod time;
+pub mod web;
