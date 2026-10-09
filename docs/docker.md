@@ -36,6 +36,9 @@ The image never updates Claude Code itself. A newer one comes with the image bui
 `docker compose build --pull`. `--build-arg CLAUDE_CODE=2.1.295` pins a version, and `stable`, the default, or
 `latest` takes the newest of either.
 
+The base images are Docker's official ones from AWS's public mirror (`public.ecr.aws/docker/library`), since Docker
+Hub limits anonymous pulls by address; `--build-arg BASE=docker.io/library` builds from Docker Hub instead.
+
 ## Your repositories
 
 A repository on a git server is cloned into `/data` on its first build. On this machine, mount the directory your
