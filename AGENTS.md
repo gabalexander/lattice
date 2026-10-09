@@ -17,7 +17,9 @@ page for each part of it.
 - The web app, in `web/` (SvelteKit, built to static files in `web/build/`, which the release binary carries):
   `npm --prefix web ci`, then `npm --prefix web run dev` to work on it, `run check` (svelte-check), `test`
   (vitest) and `run build`. `make web` builds it; a release build runs it first. Node is needed to build it,
-  never to run lattice.
+  never to run lattice. `node web/mock/server.mjs` stands in for lattice's API while you work on it, and
+  `--app build` serves the built app as lattice does, for screenshots and `web/scripts/perf.mjs`
+  (`docs/web.md`).
 - Install: `make install`: the web app and a release build, into `~/.local/bin`
 
 Run lint, format and tests before every commit. CI (`.github/workflows/ci.yml`) runs them on macOS and Ubuntu,
@@ -102,8 +104,27 @@ in.
 - `src/shell.rs`: paths written with `~`, and arguments quoted, the way a shell reads them
 - `src/links.rs`: a link opened in the browser, or copied over ssh
 - `src/clipboard.rs`: text put on the clipboard, by the system's program or OSC 52 over ssh
+- `web/`: the web app (SvelteKit, a single-page app built to `web/build/`; `docs/web.md`)
+  - `src/routes/`: its pages: `+page.svelte` the wikis and the box a wiki starts from, `jobs/[id=n]/` a job,
+    `[key=key]/+layout.svelte` a repo's wiki at `/<key>` and `/<key>/v/<n>` with its versions and jobs,
+    `settings/`; `src/params/` the keys and numbers they take
+  - `src/lib/api.ts`: the HTTP API, a function a call; `types.ts`: what it and wiki.json say
+  - `src/lib/markdown.ts`: the wiki's markdown, rendered small and strict; `fences.ts`: fences by CommonMark's
+    rules, shared with the generator's check; `codelinks.ts`: where a link into the code goes
+  - `src/lib/mermaid.ts`: mermaid, loaded and its diagrams drawn as they come near; `mermaid-sanitize.ts`: the
+    repairs made to a diagram first; `highlight.ts`: code blocks coloured by highlight.js, loaded when needed
+  - `src/lib/jobs.svelte.ts`: a job followed through its event stream; `sse.ts`: event streams read from a
+    response; `theme.svelte.ts`, `toast.svelte.ts`, `format.ts`: the theme, the toast, how things are said
+  - `src/lib/components/`: the app's parts: the header, the logo, icons, the theme menu, the source box, a
+    wiki's card, a job's progress, a confirmation
+  - `src/lib/wiki/`: a wiki's page, as Code Wiki lays it out: `WikiView.svelte` the page, `Outline`, `Prose`,
+    `DiagramCard`, `ZoomDialog`, `Chat`, `FindBox`, `HelpDialog`, `VersionMenu`, and `wiki.css`
+  - `src/export/`: the page alone, for `lattice export`, built by `vite.export.config.ts` to `build/export/`
+  - `static/`: the fonts with their licences, the theme set before the first paint, the icon
+  - `mock/`: a stand-in for lattice's API with its fixtures, and the synthetic wiki; `scripts/perf.mjs`: the
+    page measured in headless Chrome
 - `tests/cli.rs`: the binary and the runner end to end, with a fake `claude`
 - `tests/release.rs`: the release's archives named alike everywhere
 - `tests/mermaid/`: diagrams the mermaid tests read
-- `docs/`: a page for each part: `configuration.md`, `claude.md`
+- `docs/`: a page for each part: `configuration.md`, `claude.md`, `web.md`
 - `install.sh`, `packaging/homebrew/`, `.github/workflows/`: installing and releasing
