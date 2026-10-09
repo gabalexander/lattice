@@ -13,14 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          load: true
-          tags: lattice:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      # The runner's own Docker builds it (BuildKit is built in), so nothing
+      # comes from Docker Hub, whose limits on shared runners kept failing
+      # this job: buildx's builder image is pulled from there, and the base
+      # images come from AWS's mirror (the Dockerfile's BASE).
+      - run: docker build -t lattice:ci .
       - run: docker/smoke.sh lattice:ci
       - name: Say how big it is
         run: docker image ls lattice:ci --format '{{.Size}}'
