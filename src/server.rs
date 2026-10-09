@@ -126,11 +126,15 @@ impl Running {
     }
 }
 
-/// Starts serving on 127.0.0.1, on `port`, or else [`DEFAULT_PORT`] or a
-/// free one when that's taken, running jobs with `generator`, until it's
-/// stopped.
-pub fn start(port: Option<u16>, generator: Arc<dyn Generator>) -> Result<Running> {
-    let listener = bind(port)?;
+/// Starts serving on `listen`, 127.0.0.1 but in a container, on `port`, or
+/// else [`DEFAULT_PORT`] or a free one when that's taken, running jobs with
+/// `generator`, until it's stopped.
+pub fn start(
+    listen: Ipv4Addr,
+    port: Option<u16>,
+    generator: Arc<dyn Generator>,
+) -> Result<Running> {
+    let listener = bind(listen, port)?;
     let port = listener.local_addr()?.port();
     let db = Arc::new(Mutex::new(Db::open()?));
     let jobs = Jobs::start(db.clone(), generator)?;
@@ -168,22 +172,26 @@ pub fn start(port: Option<u16>, generator: Arc<dyn Generator>) -> Result<Running
     })
 }
 
-/// A listener on 127.0.0.1: on `port` if it's given, or else on
+/// A listener on `listen`: on `port` if it's given, or else on
 /// [`DEFAULT_PORT`], or a free port when that's taken.
-fn bind(port: Option<u16>) -> Result<TcpListener> {
-    let at = |port| TcpListener::bind((Ipv4Addr::LOCALHOST, port));
+fn bind(listen: Ipv4Addr, port: Option<u16>) -> Result<TcpListener> {
+    let at = |port| TcpListener::bind((listen, port));
     match port {
-        Some(port) => at(port).with_context(|| format!("couldn't listen on port {port}")),
+        Some(port) => at(port).with_context(|| format!("couldn't listen on {listen}:{port}")),
         None => at(DEFAULT_PORT)
             .or_else(|_| at(0))
-            .context("couldn't listen on 127.0.0.1"),
+            .with_context(|| format!("couldn't listen on {listen}")),
     }
 }
 
-/// `lattice serve`: serves until it's stopped, by ctrl+c or SIGTERM, the
-/// jobs running stopped first. As the `helper` `open` starts, it's cut
-/// loose from the terminal, and says nothing but in its log.
-pub fn serve(port: Option<u16>, helper: bool) -> Result<()> {
+/// `lattice serve`: serves on `listen` until it's stopped, by ctrl+c or
+/// SIGTERM, the jobs running stopped first. As the `helper` `open` starts,
+/// it's cut loose from the terminal, and says nothing but in its log.
+///
+/// Anywhere but 127.0.0.1, whoever reaches the address can use lattice:
+/// that's for a container, whose port is published to its host's
+/// 127.0.0.1 alone, and it's said as it starts.
+pub fn serve(listen: Ipv4Addr, port: Option<u16>, helper: bool) -> Result<()> {
     if helper {
         // SAFETY: setsid has no preconditions.
         unsafe {
@@ -192,8 +200,14 @@ pub fn serve(port: Option<u16>, helper: bool) -> Result<()> {
     }
     let _lock = take_lock()?;
     signals::catch();
-    let running = start(port, generator::current())?;
+    let running = start(listen, port, generator::current())?;
     let port = running.port();
+    if !listen.is_loopback() {
+        errln!(
+            "listening on {listen}:{port}: whoever reaches it can use lattice, so publish it to \
+             127.0.0.1 alone"
+        );
+    }
     write_serving(&Serving {
         pid: std::process::id(),
         port,
@@ -548,7 +562,7 @@ impl Server {
             Err((status, why)) => return Reply::text(status, why).write(out),
         };
         if route.acts()
-            && let Some(from) = http::foreign(request, self.port)
+            && let Some(from) = http::foreign(request)
         {
             return Reply::error(403, format!("refused: it came from {from}")).write(out);
         }

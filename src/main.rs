@@ -31,6 +31,10 @@ enum Command {
         /// The port [default: 7347, or a free one when that's taken]
         #[arg(short, long)]
         port: Option<u16>,
+        /// The address to listen on: 127.0.0.1, but in a container, whose
+        /// port is published to its host's 127.0.0.1 alone (docs/docker.md).
+        #[arg(long, default_value = "127.0.0.1")]
+        listen: std::net::Ipv4Addr,
         /// Stop the server that's running instead.
         #[arg(long, conflicts_with = "port")]
         stop: bool,
@@ -114,7 +118,12 @@ fn main() -> ExitCode {
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Serve { stop: true, .. } => server::stop(),
-        Command::Serve { port, helper, .. } => server::serve(port, helper),
+        Command::Serve {
+            listen,
+            port,
+            helper,
+            ..
+        } => server::serve(listen, port, helper),
         Command::Open { repo } => server::open(repo),
         Command::Export { repo, dir, version } => export(&repo, &dir, version),
         Command::Build { repo, model } => build(&repo, JobKind::Build, model),

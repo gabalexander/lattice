@@ -21,6 +21,8 @@ page for each part of it.
   `--app build` serves the built app as lattice does, for screenshots and `web/scripts/perf.mjs`
   (`docs/web.md`).
 - Install: `make install`: the web app and a release build, into `~/.local/bin`
+- The container: `docker build -t lattice:dev .`, then `docker/smoke.sh lattice:dev` tries it
+  (`docs/docker.md`)
 
 Run lint, format and tests before every commit. CI (`.github/workflows/ci.yml`) runs them on macOS and Ubuntu,
 builds with the oldest Rust `Cargo.toml` promises, and runs the web app's lint, check, tests and build.
@@ -166,3 +168,6 @@ in.
 - `tests/mermaid/`: diagrams the mermaid tests read
 - `docs/`: a page for each part: `cli.md`, `server.md`, `configuration.md`, `claude.md`, `web.md`
 - `install.sh`, `packaging/homebrew/`, `.github/workflows/`: installing and releasing
+- `Dockerfile`, `docker-compose.yml`, `docker/`: the container: lattice, git and Claude Code on Alpine, built in
+  stages, with its entrypoint (ssh set up for private repositories), `git-credential-env` (a
+  token from the environment, over HTTPS alone), and `smoke.sh`, which CI's `docker.yml` runs on the image

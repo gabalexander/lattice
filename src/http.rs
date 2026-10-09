@@ -142,18 +142,22 @@ pub fn is_local_host(host: Option<&str>) -> bool {
     name == "127.0.0.1" || name.eq_ignore_ascii_case("localhost")
 }
 
-/// Whether `origin` is the server's own, on `port`.
-fn is_own_origin(origin: &str, port: u16) -> bool {
-    origin == format!("http://127.0.0.1:{port}") || origin == format!("http://localhost:{port}")
+/// Whether `origin` is the page's own: the server as `host`, the request's
+/// `Host`, names it. That's this machine, checked already, on the port the
+/// browser reached, which a container's published port may change.
+fn is_own_origin(origin: &str, host: Option<&str>) -> bool {
+    host.is_some_and(|host| is_local_host(Some(host)) && origin == format!("http://{host}"))
 }
 
 /// Why `request`, which does something, can't be taken from where it came:
 /// another site's page, by its `Origin` or `Sec-Fetch-Site`; and a POST,
 /// PUT or DELETE must say its origin, as browsers do.
-pub fn foreign(request: &Request, port: u16) -> Option<&'static str> {
+pub fn foreign(request: &Request) -> Option<&'static str> {
     let changes = matches!(request.method.as_str(), "POST" | "PUT" | "DELETE");
     match request.header("origin") {
-        Some(origin) if !is_own_origin(origin, port) => return Some("another site's page"),
+        Some(origin) if !is_own_origin(origin, request.header("host")) => {
+            return Some("another site's page");
+        }
         None if changes => return Some("a page that doesn't say its origin"),
         _ => {}
     }
@@ -355,24 +359,37 @@ mod tests {
                 .collect(),
             ..Request::default()
         };
+        let host = ("host", "127.0.0.1:7347");
         let own = ("origin", "http://127.0.0.1:7347");
         for method in ["POST", "PUT", "DELETE"] {
-            assert_eq!(foreign(&request(method, &[own]), 7347), None, "{method}");
-            assert!(foreign(&request(method, &[]), 7347).is_some(), "{method}");
+            assert_eq!(foreign(&request(method, &[host, own])), None, "{method}");
+            assert!(foreign(&request(method, &[host])).is_some(), "{method}");
         }
-        let localhost = ("origin", "http://localhost:7347");
-        assert_eq!(foreign(&request("POST", &[localhost]), 7347), None);
+        let localhost = [
+            ("host", "localhost:7347"),
+            ("origin", "http://localhost:7347"),
+        ];
+        assert_eq!(foreign(&request("POST", &localhost)), None);
+        // A container's port, published as another.
+        let published = [
+            ("host", "127.0.0.1:8080"),
+            ("origin", "http://127.0.0.1:8080"),
+        ];
+        assert_eq!(foreign(&request("POST", &published)), None);
+        let elsewhere = [("host", "127.0.0.1:8000"), own];
         assert!(
-            foreign(&request("POST", &[own]), 8000).is_some(),
+            foreign(&request("POST", &elsewhere)).is_some(),
             "another port"
         );
+        let rebound = [("host", "evil.example"), ("origin", "http://evil.example")];
+        assert!(foreign(&request("POST", &rebound)).is_some());
         let evil = ("origin", "https://evil.example");
-        assert!(foreign(&request("POST", &[evil]), 7347).is_some());
-        assert_eq!(foreign(&request("GET", &[]), 7347), None, "typed in");
-        let fetched = request("GET", &[("sec-fetch-site", "same-origin")]);
-        assert_eq!(foreign(&fetched, 7347), None);
-        let embedded = request("GET", &[("sec-fetch-site", "cross-site")]);
-        assert!(foreign(&embedded, 7347).is_some());
+        assert!(foreign(&request("POST", &[host, evil])).is_some());
+        assert_eq!(foreign(&request("GET", &[host])), None, "typed in");
+        let fetched = request("GET", &[host, ("sec-fetch-site", "same-origin")]);
+        assert_eq!(foreign(&fetched), None);
+        let embedded = request("GET", &[host, ("sec-fetch-site", "cross-site")]);
+        assert!(foreign(&embedded).is_some());
     }
 
     #[test]
