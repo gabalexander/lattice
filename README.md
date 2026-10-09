@@ -4,9 +4,6 @@ A wiki for your codebase, written by Claude and kept up to date: one page per re
 a diagram for every part, code names linked to the exact line they're defined on, and a chat that reads the
 code to answer. It runs on your own machine and uses only your Claude subscription, through Claude Code.
 
-> [!NOTE]
-> lattice is young: the server, the web app and the generator are landing now.
-
 ## Install
 
 lattice needs [Claude Code](https://docs.anthropic.com/en/docs/claude-code), logged in, and git.
