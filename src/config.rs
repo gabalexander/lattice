@@ -5,7 +5,7 @@
 //! ```toml
 //! model = "sonnet"          # the model that plans and writes a wiki
 //! concurrency = 4           # how many of its writers write at once
-//! budget_usd = 30.0         # the most one build may spend
+//! budget_usd = 0.0          # the most one build may spend; 0, no limit
 //! ask_model = "sonnet"      # the model that answers the chat
 //! ask_budget_usd = 0.5      # the most one question may spend
 //! exclude = ["vendor/**"]   # files left out of every wiki
@@ -43,7 +43,7 @@ pub struct Config {
     pub concurrency: usize,
     /// The most one build may spend, in US dollars, by Claude's own count:
     /// one that reaches it stops, keeping what it wrote, for a resume to
-    /// carry on from.
+    /// carry on from. 0, the default, is no limit.
     pub budget_usd: f64,
     /// The model that answers the chat.
     pub ask_model: String,
@@ -63,7 +63,7 @@ impl Default for Config {
         Config {
             model: "sonnet".to_string(),
             concurrency: 4,
-            budget_usd: 30.0,
+            budget_usd: 0.0,
             ask_model: "sonnet".to_string(),
             ask_budget_usd: 0.5,
             exclude: Vec::new(),
@@ -137,13 +137,17 @@ impl Config {
                 CONCURRENCY.end()
             );
         }
-        for (name, budget) in [
-            ("budget_usd", self.budget_usd),
-            ("ask_budget_usd", self.ask_budget_usd),
-        ] {
-            if !budget.is_finite() || budget <= 0.0 {
-                bail!("{name} is {budget}: it's more than 0");
-            }
+        if !self.budget_usd.is_finite() || self.budget_usd < 0.0 {
+            bail!(
+                "budget_usd is {}: it's 0 for no limit, or more",
+                self.budget_usd
+            );
+        }
+        if !self.ask_budget_usd.is_finite() || self.ask_budget_usd <= 0.0 {
+            bail!(
+                "ask_budget_usd is {}: it's more than 0",
+                self.ask_budget_usd
+            );
         }
         if self.exclude.iter().any(|glob| glob.trim().is_empty()) {
             bail!("exclude has an empty glob");
@@ -234,7 +238,7 @@ mod tests {
         assert!(refused("modle = \"opus\"").contains("unknown field `modle`"));
         assert!(refused("concurrency = 0").contains("concurrency is 0"));
         assert!(refused("concurrency = 17").contains("from 1 to 16"));
-        assert!(refused("budget_usd = 0").contains("budget_usd is 0"));
+        assert!(refused("budget_usd = -1").contains("budget_usd is -1"));
         assert!(refused("ask_budget_usd = -1").contains("ask_budget_usd is -1"));
         assert!(refused("budget_usd = nan").contains("budget_usd is NaN"));
         assert!(refused("exclude = [\" \"]").contains("empty glob"));

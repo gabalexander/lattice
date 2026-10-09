@@ -51,7 +51,7 @@ const withVersion = (wiki, { commit, at, model, by, cost }) => ({
 });
 
 const state = {
-  settings: { model: 'sonnet', concurrency: 4, budget_usd: 30, ask_model: 'sonnet', ask_budget_usd: 0.5, exclude: ['vendor/**', '*.min.js'] },
+  settings: { model: 'sonnet', concurrency: 4, budget_usd: 0, ask_model: 'sonnet', ask_budget_usd: 0.5, exclude: ['vendor/**', '*.min.js'] },
   repos: new Map(),
   jobs: new Map(),
   nextJob: 41,

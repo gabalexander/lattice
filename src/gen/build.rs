@@ -287,7 +287,7 @@ pub fn run(job: &JobSpec, report: &mut dyn FnMut(Report), cancel: &Cancel) -> Re
         preflight: OnceLock::new(),
     };
     shared.log(&format!(
-        "{} of {} at {} with {}: {} files, {} of them source, {} lines of source; budget ${:.2}",
+        "{} of {} at {} with {}: {} files, {} of them source, {} lines of source; {}",
         kind_word(shared.run(|run| run.kind)),
         job.repo.name,
         short(&shared.run(|run| run.commit.clone())),
@@ -295,7 +295,11 @@ pub fn run(job: &JobSpec, report: &mut dyn FnMut(Report), cancel: &Cancel) -> Re
         files.files.len(),
         files.sources().count(),
         files.source_lines(),
-        job.config.budget_usd,
+        if job.config.budget_usd > 0.0 {
+            format!("budget ${:.2}", job.config.budget_usd)
+        } else {
+            "no budget".to_string()
+        },
     ));
     // How each language was indexed, which says how far its links reach.
     for line in index.summary() {
@@ -1621,7 +1625,11 @@ impl Shared<'_> {
                 state.stopped = Some(why.clone());
                 bail!("{why}");
             }
-            let left = self.config.budget_usd - state.spent - state.reserved;
+            let left = if self.config.budget_usd > 0.0 {
+                self.config.budget_usd - state.spent - state.reserved
+            } else {
+                f64::INFINITY
+            };
             let budget = ask.budget_usd.min(left);
             if budget < LEAST_CALL {
                 let why = format!(

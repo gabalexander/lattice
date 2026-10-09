@@ -88,7 +88,7 @@
         <div class="field">
           <label for="budget">Most a build may spend</label>
           <div class="money"><span aria-hidden="true">$</span><input id="budget" type="number" min="0" step="1" bind:value={form.budget_usd} aria-describedby="budget-hint" /></div>
-          <p class="hint" id="budget-hint">In dollars, as Claude Code counts it; a build stops when it gets there, and Resume carries on.</p>
+          <p class="hint" id="budget-hint">In dollars, as Claude Code counts it; 0 is no limit. A build stops when it gets there, and Resume carries on.</p>
         </div>
         <div class="field">
           <label for="exclude">Left out</label>

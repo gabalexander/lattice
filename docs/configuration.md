@@ -8,7 +8,7 @@ quietly skipped: `lattice doctor` says which.
 ```toml
 model = "sonnet"          # the model that plans and writes a wiki
 concurrency = 4           # how many of a build's writers write at once, 1 to 16
-budget_usd = 30.0         # the most one build may spend, in US dollars
+budget_usd = 0.0          # the most one build may spend, in US dollars; 0, no limit
 ask_model = "sonnet"      # the model that answers the chat
 ask_budget_usd = 0.5      # the most one question may spend
 exclude = ["vendor/**"]   # files left out of every wiki, as .gitignore writes them
@@ -25,7 +25,7 @@ paths_only = ["vendor/", "third_party/", "node_modules/", "testdata/"]
 | --- | --- | --- |
 | `model` | `sonnet` | The model that writes a wiki, as `claude --model` takes it: `sonnet`, `opus`, or a full name like `claude-opus-5-5`. A build can be given another. |
 | `concurrency` | `4` | How many subsections a build writes at once. |
-| `budget_usd` | `30.0` | The most one build may spend, by Claude Code's own count. A build that reaches it stops, keeping what it wrote, for a resume to carry on from. |
+| `budget_usd` | `0.0` (no limit) | The most one build may spend, by Claude Code's own count; 0 is no limit. A build that reaches it stops, keeping what it wrote, for a resume to carry on from. |
 | `ask_model` | `sonnet` | The model that answers questions in the chat. |
 | `ask_budget_usd` | `0.5` | The most one question may spend. |
 | `exclude` | `[]` | Globs of files no wiki reads or links to, beyond what `.gitignore` leaves out. |
