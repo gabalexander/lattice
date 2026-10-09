@@ -9,9 +9,6 @@
   --gap: 14px;
   --left: clamp(200px, 15.8vw, 280px);
   --right: clamp(340px, 31.7vw, 560px);
-  /* The longest a line of the document's text runs, when the chat closed gives it the room; its diagrams, tables
-     and code take the whole width. */
-  --measure: 900px;
 }
 html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
 
@@ -214,8 +211,8 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
 
 /* The overview's diagram floats at its start, as Code Wiki's does, and the text runs beside it, then on under
    it the whole width; in an overview too narrow for text beside it, it's a card above the text. The overview
-   holds its float, and keeps to the measure. */
-.wiki .overview { container: overview / inline-size; max-width: var(--measure); }
+   holds its float. */
+.wiki .overview { container: overview / inline-size; }
 .wiki .overview > .diagram-card { float: left; width: 50%; margin: 0 24px 24px 0; aspect-ratio: 20 / 21; }
 .wiki .overview .prose .diagram-card { clear: both; }
 .wiki .overview .prose > :last-child { margin-bottom: 0; }
@@ -226,8 +223,8 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
 
 /* ---- Prose, here and in the chat ------------------------------------------------------------------- */
 
-/* Code Wiki's text: 14px on 28px lines, 24px after each paragraph and each item of a list, lists indented 40px;
-   the document's lines no longer than the measure. The chat keeps its own, closer, spacing. */
+/* Code Wiki's text: 14px on 28px lines, 24px after each paragraph and each item of a list, lists indented 40px,
+   the panel's whole width, as its diagrams. The chat keeps its own, closer, spacing. */
 .wiki .prose p { margin: 0 0 16px; }
 .wiki .prose ul, .wiki .prose ol { margin: 0 0 16px; padding-left: 26px; }
 .wiki .prose li { margin: 2px 0; }
@@ -237,7 +234,6 @@ html:has(.wiki) { scroll-padding-top: calc(var(--header-h, 108px) + 8px); }
 .wiki .doc-body .prose li { margin: 0; }
 .wiki .doc-body .prose li:not(:has(> p)) { margin: 0 0 24px; }
 .wiki .doc-body .prose li > ul, .wiki .doc-body .prose li > ol { margin: 0; }
-.wiki .doc-body .prose > :is(p, ul, ol, blockquote, h4, h5, h6, hr) { max-width: var(--measure); }
 .wiki .prose li.task { list-style: none; margin-left: -20px; }
 .wiki .prose li.task input { margin: 0 6px 0 0; vertical-align: -2px; }
 /* Code is 11px Google Sans Code at 600, in the text's colour; a name that links into the code is a chip. */
