@@ -691,7 +691,7 @@ fn the_settings_are_read_checked_and_saved() {
     let settings = served.json("/api/settings");
     assert_eq!(
         settings,
-        json!({"model": "sonnet", "concurrency": 4, "budget_usd": 30.0, "ask_model": "sonnet",
+        json!({"model": "sonnet", "concurrency": 4, "budget_usd": 0.0, "ask_model": "sonnet",
                "ask_budget_usd": 0.5, "exclude": [],
                "index": {"precise": true, "indexer_timeout_secs": 900, "indexer_memory_mb": 8192,
                          "max_file_kb": 1024,

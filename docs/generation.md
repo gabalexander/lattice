@@ -96,7 +96,7 @@ starts no more runs and stops, keeping what it wrote, for a resume to carry on.
 | A writer sent back to put its text right (or the planner, its outline) | $0.60 | 16 | 8 min |
 | A section's summary | $0.80 | 16 | 10 min |
 | The overview | $1.20 | 20 | 15 min |
-| The whole build | `budget_usd`, $30 by default | | 4 hours |
+| The whole build | `budget_usd`, none by default | | 4 hours |
 
 A writer that fails, or gives back no text, is run once more with half again its turns and spend. A run that
 fails for a reason that passes, Claude overloaded or rate limited, is tried again twice, waiting longer each
@@ -115,9 +115,9 @@ Measured with Sonnet, four writers at once, on a Mac, in October 2026:
 | crystal, a sync after a commit that changed one file | | 1 subsection written again | $0.17 | 34 s |
 
 A subsection's writer costs $0.10 to $0.60, about $0.30 on average; the planner $0.10 to $0.40; a section's
-summary and the overview $0.08 to $0.25 each. The budget's default, $30, covers a repository of about 200,000
-lines with Sonnet. Opus costs more a run: raise `budget_usd` with it. A build that reaches its budget stops,
-keeping what it wrote, and a resume carries on with a budget of its own.
+summary and the overview $0.08 to $0.25 each. A build has no budget by default: a repository of about 200,000
+lines costs about $30 with Sonnet, and Opus costs more a run. Set `budget_usd` to cap it: a build that
+reaches its budget stops, keeping what it wrote, and a resume carries on with a budget of its own.
 
 ## What goes where
 
