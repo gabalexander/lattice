@@ -1,0 +1,26 @@
+name: docker
+
+# The container's image (docs/docker.md), built and tried with
+# docker/smoke.sh: what's in it runs, and the server answers with the web
+# app built in.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: lattice:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - run: docker/smoke.sh lattice:ci
+      - name: Say how big it is
+        run: docker image ls lattice:ci --format '{{.Size}}'

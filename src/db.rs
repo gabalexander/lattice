@@ -393,13 +393,19 @@ impl Db {
         rows.map(|row| row?).collect()
     }
 
-    /// Has job `id` running, from now.
-    pub fn start_job(&self, id: u64) -> Result<()> {
-        self.conn.execute(
-            "UPDATE jobs SET state = ?2, started = ?3 WHERE id = ?1",
-            params![id, word(&JobState::Running)?, Timestamp::now().0],
+    /// Has job `id` running, from now, if it's waiting to: whether it was,
+    /// and so is this caller's to run.
+    pub fn start_job(&self, id: u64) -> Result<bool> {
+        let claimed = self.conn.execute(
+            "UPDATE jobs SET state = ?2, started = ?3 WHERE id = ?1 AND state = ?4",
+            params![
+                id,
+                word(&JobState::Running)?,
+                Timestamp::now().0,
+                word(&JobState::Queued)?
+            ],
         )?;
-        Ok(())
+        Ok(claimed > 0)
     }
 
     /// Keeps how far job `id` has got.
@@ -425,19 +431,26 @@ impl Db {
         Ok(())
     }
 
-    /// Has every job left running, by a server that stopped, failed with
-    /// [`INTERRUPTED`]: how many there were. A server runs this as it
-    /// starts, before it runs any.
-    pub fn interrupt_running(&self) -> Result<usize> {
-        Ok(self.conn.execute(
-            "UPDATE jobs SET state = ?1, error = ?2, finished = ?3 WHERE state = ?4",
-            params![
-                word(&JobState::Failed)?,
-                INTERRUPTED,
-                Timestamp::now().0,
-                word(&JobState::Running)?
-            ],
-        )?)
+    /// Has every job left running by a lattice that stopped failed, with
+    /// [`INTERRUPTED`]: those but on the repositories `still_building` says
+    /// another lattice is building. How many there were. A server runs this
+    /// as it starts, before it runs any.
+    pub fn interrupt_running(&self, still_building: impl Fn(&str) -> bool) -> Result<usize> {
+        let running = self.jobs_where("state = ?1 ORDER BY id", &word(&JobState::Running)?)?;
+        let mut interrupted = 0;
+        for job in running.iter().filter(|job| !still_building(&job.repo)) {
+            interrupted += self.conn.execute(
+                "UPDATE jobs SET state = ?2, error = ?3, finished = ?4 WHERE id = ?1 AND state = ?5",
+                params![
+                    job.id,
+                    word(&JobState::Failed)?,
+                    INTERRUPTED,
+                    Timestamp::now().0,
+                    word(&JobState::Running)?
+                ],
+            )?;
+        }
+        Ok(interrupted)
     }
 }
 
@@ -630,7 +643,8 @@ mod tests {
         let other = db.add_job(&repo.key, JobKind::Sync, None, None).unwrap();
         let queued: Vec<u64> = db.queued_jobs().unwrap().iter().map(|j| j.id).collect();
         assert_eq!(queued, [job.id, other.id]);
-        db.start_job(job.id).unwrap();
+        assert!(db.start_job(job.id).unwrap());
+        assert!(!db.start_job(job.id).unwrap(), "it's running already");
         let progress = Progress {
             phase: Phase::Write,
             done: 12,
@@ -666,12 +680,17 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut db = db_in(&dir);
         let repo = db.add_repo(&git("https://example.com/app.git")).unwrap();
+        let other = db.add_repo(&git("https://example.com/other.git")).unwrap();
         let running = db.add_job(&repo.key, JobKind::Build, None, None).unwrap();
         let queued = db.add_job(&repo.key, JobKind::Sync, None, None).unwrap();
+        let elsewhere = db.add_job(&other.key, JobKind::Build, None, None).unwrap();
         db.start_job(running.id).unwrap();
+        db.start_job(elsewhere.id).unwrap();
         drop(db);
         let db = db_in(&dir);
-        assert_eq!(db.interrupt_running().unwrap(), 1);
+        assert_eq!(db.interrupt_running(|key| key == other.key).unwrap(), 1);
+        let spared = db.job(elsewhere.id).unwrap().unwrap();
+        assert_eq!(spared.state, JobState::Running, "another lattice builds it");
         let interrupted = db.job(running.id).unwrap().unwrap();
         assert_eq!(interrupted.state, JobState::Failed);
         assert_eq!(interrupted.error.as_deref(), Some(INTERRUPTED));

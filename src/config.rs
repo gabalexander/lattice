@@ -90,6 +90,25 @@ impl Config {
         Config::from_text(&text).with_context(|| format!("in {}", path.display()))
     }
 
+    /// Writes the settings into the config file, whole or not at all, as
+    /// the settings page saves them. Comments the file had are lost: it's
+    /// written as the settings say, every one of them.
+    pub fn save(&self) -> Result<()> {
+        self.check()?;
+        let path = paths::config_file();
+        let dir = path.parent().context("the config file has a directory")?;
+        std::fs::create_dir_all(dir).with_context(|| format!("couldn't make {}", dir.display()))?;
+        let text = format!(
+            "# lattice's settings: docs/configuration.md says what each one does.\n{}",
+            toml::to_string(self)?
+        );
+        let partial = path.with_extension(format!("toml.{}", std::process::id()));
+        std::fs::write(&partial, text)
+            .with_context(|| format!("couldn't write {}", partial.display()))?;
+        std::fs::rename(&partial, &path)
+            .with_context(|| format!("couldn't write {}", path.display()))
+    }
+
     /// The settings `text` holds, checked.
     pub fn from_text(text: &str) -> Result<Config> {
         let config: Config = toml::from_str(text)?;

@@ -1,0 +1,43 @@
+# lattice in a container: `docker compose up -d`, then log Claude Code in
+# once with `docker compose exec lattice claude auth login`, and open
+# http://127.0.0.1:7347. docs/docker.md says the rest.
+services:
+  lattice:
+    build: .
+    image: lattice
+    # Published to this machine alone: whoever reaches the port can use
+    # lattice, and spend from its Claude login.
+    ports:
+      - "127.0.0.1:7347:7347"
+    volumes:
+      - lattice-data:/data
+      - claude:/home/lattice/.claude
+      # Your own repositories, read where they are: add /repos/<name>.
+      # - ~/code:/repos:ro
+      # An SSH agent for private repositories: on Linux,
+      # - ${SSH_AUTH_SOCK}:/run/ssh-agent.sock
+      # or with Docker Desktop,
+      # - /run/host-services/ssh-auth.sock:/run/ssh-agent.sock
+    environment:
+      # A token for private repositories over HTTPS, on any git server.
+      GIT_TOKEN: ${GIT_TOKEN:-}
+      GIT_USERNAME: ${GIT_USERNAME:-}
+      GIT_TOKEN_HOST: ${GIT_TOKEN_HOST:-}
+      # With the agent's socket mounted above:
+      # SSH_AUTH_SOCK: /run/ssh-agent.sock
+    # Or a key of its own, a deploy key say: see docs/docker.md.
+    # secrets:
+    #   - git_ssh_key
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+# secrets:
+#   git_ssh_key:
+#     file: ./git_ssh_key
+
+volumes:
+  lattice-data:
+  claude:

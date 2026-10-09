@@ -1,6 +1,8 @@
 //! The release's archives are named the same everywhere they're named:
 //! the workflow that builds them, install.sh that downloads them, and the
-//! Homebrew formula and its script. Change one, change them all.
+//! Homebrew formula and its script; and the container's image downloads the
+//! mermaid lattice does, where lattice looks for it. Change one, change
+//! them all.
 
 use std::path::Path;
 
@@ -43,4 +45,21 @@ fn every_archive_is_named_alike_where_it_s_built_downloaded_and_brewed() {
     for os in ["apple-darwin", "unknown-linux-musl"] {
         assert!(install.contains(&format!("os=\"{os}\"")), "{os}");
     }
+}
+
+#[test]
+fn the_image_has_the_mermaid_lattice_checks_where_lattice_looks() {
+    use lattice::download::MERMAID;
+    let dockerfile = read("Dockerfile");
+    assert!(dockerfile.contains(MERMAID.url), "{}", MERMAID.url);
+    assert!(dockerfile.contains(&format!("echo \"{}  /mermaid.min.js\"", MERMAID.sha256)));
+    assert!(dockerfile.contains("XDG_CACHE_HOME=/opt/lattice/cache"));
+    let kept = format!(
+        "/opt/lattice/cache/lattice/downloads/{}/{}",
+        MERMAID.version, MERMAID.name
+    );
+    assert!(
+        dockerfile.contains(&format!("/mermaid.min.js {kept}\n")),
+        "{kept}"
+    );
 }

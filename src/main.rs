@@ -1,16 +1,20 @@
 //! lattice's command line: `lattice serve`, `open`, `export`, `build`,
-//! `sync`, `status`, `index` and `doctor`.
+//! `sync`, `status`, `index` and `doctor`. docs/cli.md says what each does.
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use lattice::cancel::Cancel;
 use lattice::config::{self, Config};
-use lattice::db::Db;
+use lattice::db::{Db, Ended, JobKind, Phase, Progress, Repo};
+use lattice::generator::{self, Report};
 use lattice::index::{Index, Lookup};
-use lattice::{claude, outln, output, paths, printable, shell};
+use lattice::jobs::{self, BuildLock};
+use lattice::source::Source;
+use lattice::{claude, outln, output, paths, printable, repos, server, shell, signals};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command as Process, ExitCode};
+use std::sync::Mutex;
 
 /// A code wiki for your own repositories, written by Claude Code and kept
 /// up to date.
@@ -28,9 +32,20 @@ enum Command {
         /// The port [default: 7347, or a free one when that's taken]
         #[arg(short, long)]
         port: Option<u16>,
+        /// The address to listen on: 127.0.0.1, but in a container, whose
+        /// port is published to its host's 127.0.0.1 alone (docs/docker.md).
+        #[arg(long, default_value = "127.0.0.1")]
+        listen: std::net::Ipv4Addr,
+        /// Stop the server that's running instead.
+        #[arg(long, conflicts_with = "port")]
+        stop: bool,
+        /// Run as the server `lattice open` starts in the background.
+        #[arg(long, hide = true)]
+        helper: bool,
     },
-    /// Open a repository's wiki in the browser, or the home page, starting
-    /// a server in the background when none is running.
+    /// Open a repository's wiki in the browser, adding the repository when
+    /// it's new, or the home page, starting a server in the background when
+    /// none is running.
     Open {
         /// The repository: a path, a git URL or owner/repo on GitHub, or
         /// its key [default: the home page]
@@ -43,8 +58,12 @@ enum Command {
         repo: String,
         /// The directory to write it in.
         dir: PathBuf,
+        /// The version to write [default: the latest]
+        #[arg(long)]
+        version: Option<u32>,
     },
-    /// Write a repository's wiki: a new version.
+    /// Write a repository's wiki, adding the repository when it's new: a
+    /// new version.
     Build {
         /// The repository: a path, a git URL or owner/repo, or its key.
         repo: String,
@@ -53,7 +72,7 @@ enum Command {
         model: Option<String>,
     },
     /// Write again what changed in a repository since its wiki's latest
-    /// version.
+    /// version: a new version.
     Sync {
         /// The repository: a path, a git URL or owner/repo, or its key.
         repo: String,
@@ -120,12 +139,18 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
-        Command::Serve { .. } | Command::Open { .. } | Command::Export { .. } => {
-            bail!("not yet: the server comes in lattice's next release")
-        }
-        Command::Build { .. } | Command::Sync { .. } | Command::Status { .. } => {
-            bail!("not yet: the generator comes in lattice's next release")
-        }
+        Command::Serve { stop: true, .. } => server::stop(),
+        Command::Serve {
+            listen,
+            port,
+            helper,
+            ..
+        } => server::serve(listen, port, helper),
+        Command::Open { repo } => server::open(repo),
+        Command::Export { repo, dir, version } => export(&repo, &dir, version),
+        Command::Build { repo, model } => build(&repo, JobKind::Build, model),
+        Command::Sync { repo } => build(&repo, JobKind::Sync, None),
+        Command::Status { repo } => status(repo.as_deref()),
         Command::Index {
             repo,
             spans,
@@ -134,6 +159,196 @@ fn run(cli: Cli) -> Result<()> {
             json,
         } => index(&repo, &spans, &near, commit.as_deref(), json),
         Command::Doctor { model } => doctor(model),
+    }
+}
+
+/// The directory a repository typed on the command line is from.
+fn cwd() -> Result<PathBuf> {
+    std::env::current_dir().context("couldn't tell the current directory")
+}
+
+/// The repository `typed` names, which lattice must know already.
+fn known(db: &Db, typed: &str) -> Result<Repo> {
+    match repos::find(db, typed, &cwd()?)? {
+        Some(repo) => Ok(repo),
+        None => bail!(
+            "{} isn't one of lattice's repositories: `lattice build {}` adds it",
+            printable::line(typed),
+            shell::quote(typed)
+        ),
+    }
+}
+
+/// `lattice export`.
+fn export(typed: &str, dir: &std::path::Path, version: Option<u32>) -> Result<()> {
+    let db = Db::open()?;
+    let repo = known(&db, typed)?;
+    let page = lattice::export::export(&db, &repo, version, dir)?;
+    outln!(
+        "wrote {}'s wiki to {}: open {}",
+        repo.name,
+        dir.display(),
+        page.display()
+    )
+}
+
+/// `lattice build` and `lattice sync`: a job of `kind` on the repository
+/// `typed` names, added when it's new, run here, what it does said as it
+/// does it; ctrl+c stops it.
+fn build(typed: &str, kind: JobKind, model: Option<String>) -> Result<()> {
+    let db = Mutex::new(Db::open()?);
+    let repo = {
+        let mut db = db.lock().unwrap_or_else(|err| err.into_inner());
+        match repos::find(&db, typed, &cwd()?)? {
+            Some(repo) => repo,
+            None => repos::add(&mut db, typed, &cwd()?)?,
+        }
+    };
+    // A job a lattice that was killed left running holds nothing now.
+    db.lock()
+        .unwrap_or_else(|err| err.into_inner())
+        .interrupt_running(jobs::building)?;
+    let Some(lock) = BuildLock::take(&repo.key)? else {
+        bail!(
+            "{} is being built already: `lattice status {}` says how far it got",
+            repo.name,
+            repo.key
+        );
+    };
+    let job = {
+        let db = db.lock().unwrap_or_else(|err| err.into_inner());
+        jobs::submit(&db, &repo.key, kind, model.as_deref(), None)?
+    };
+    let cancel = Cancel::new();
+    signals::cancel_on_stop(cancel.clone());
+    let generator = generator::current();
+    let mut last: Option<Progress> = None;
+    let ended = jobs::run(
+        &db,
+        job.id,
+        lock,
+        generator.as_ref(),
+        &cancel,
+        &mut |report| {
+            // Said along the way of work that must finish: a reader gone
+            // doesn't stop it.
+            let _ = match report {
+                Report::Log(line) => outln!("{}", printable::line(&line)),
+                Report::Progress(progress) => {
+                    let same = last.as_ref().is_some_and(|last| {
+                        (last.phase, last.done, last.total, &last.current)
+                            == (
+                                progress.phase,
+                                progress.done,
+                                progress.total,
+                                &progress.current,
+                            )
+                    });
+                    let said = (!same).then(|| progress_line(&progress));
+                    last = Some(progress);
+                    match said {
+                        Some(said) => outln!("{said}"),
+                        None => Ok(()),
+                    }
+                }
+            };
+        },
+    )?;
+    match ended {
+        Ended::Done(n) => outln!(
+            "wrote version {n} of {}'s wiki: `lattice open {}` shows it",
+            repo.name,
+            repo.key
+        ),
+        Ended::Failed(why) => bail!("{why}"),
+        Ended::Cancelled => bail!("cancelled: `lattice build` or the page's Resume carries on"),
+    }
+}
+
+/// A build's progress, on a line.
+fn progress_line(progress: &Progress) -> String {
+    let phase = match progress.phase {
+        Phase::Plan => "planning",
+        Phase::Write => "writing",
+        Phase::Link => "linking",
+        Phase::Overview => "the overview",
+    };
+    let current = match &progress.current {
+        Some(current) => format!(": {}", printable::line(current)),
+        None => String::new(),
+    };
+    format!(
+        "{phase} {} of {}{current} (${:.2})",
+        progress.done, progress.total, progress.cost_usd
+    )
+}
+
+/// `lattice status`: each repository, or the one `typed` names, with its
+/// versions and its latest job.
+fn status(typed: Option<&str>) -> Result<()> {
+    let db = Db::open()?;
+    let listed = match typed {
+        Some(typed) => vec![known(&db, typed)?],
+        None => db.repos()?,
+    };
+    if listed.is_empty() {
+        outln!(
+            "no repositories yet: `lattice build <path, git URL or owner/repo>` writes the first \
+             wiki, or `lattice open` the home page"
+        )?;
+    }
+    for repo in listed {
+        let source = match &repo.source {
+            Source::Local { path } => shell::home_relative(path),
+            Source::Git { url } => url.clone(),
+        };
+        outln!("{}  {}  {source}", repo.key, printable::line(&repo.name))?;
+        let versions = db.versions(&repo.key)?;
+        for version in &versions {
+            let commit: String = version.commit.chars().take(10).collect();
+            let branch = version.branch.as_deref().unwrap_or("-");
+            outln!(
+                "  v{}  {commit}  {branch}  {}  {}  ${:.2}",
+                version.n,
+                version.model,
+                version.at,
+                version.cost_usd
+            )?;
+        }
+        if let Some(latest) = versions.last() {
+            let head = repos::head(&repo, latest.branch.as_deref());
+            if head.as_ref().is_some_and(|head| *head != latest.commit) {
+                outln!(
+                    "  the code has moved on since v{}: `lattice sync {}` writes it again",
+                    latest.n,
+                    repo.key
+                )?;
+            }
+        }
+        if let Some(job) = db.jobs(&repo.key)?.first() {
+            let mut line = format!(
+                "  job {}: {} {}",
+                job.id,
+                jobs::word(job.kind),
+                word(&job.state)
+            );
+            if let Some(progress) = job.progress.as_ref().filter(|_| !job.state.is_over()) {
+                line.push_str(&format!(", {}", progress_line(progress)));
+            }
+            if let Some(error) = &job.error {
+                line.push_str(&format!(": {}", printable::line(error)));
+            }
+            outln!("{line}")?;
+        }
+    }
+    Ok(())
+}
+
+/// How an enum is said, as the API says it.
+fn word<T: serde::Serialize>(value: &T) -> String {
+    match serde_json::to_value(value) {
+        Ok(serde_json::Value::String(word)) => word,
+        _ => String::new(),
     }
 }
 

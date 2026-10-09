@@ -13,6 +13,7 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Mutex;
 
 /// The mermaid build the page draws its diagrams with: one file, which
 /// sets `window.mermaid`.
@@ -24,6 +25,10 @@ pub const MERMAID: Download = Download {
     sha256: "581ed7d74bd9048d0e3a91363927d72ef22942d7722546b27f7cc29e35390eb8",
 };
 
+/// mermaid's license, which goes wherever lattice puts mermaid for others:
+/// beside it in an exported site.
+pub const MERMAID_LICENSE: &str = include_str!("../assets/mermaid-LICENSE.txt");
+
 /// The variable that keeps lattice from downloading, as its tests set:
 /// what isn't in the cache already is missing.
 pub const NO_DOWNLOAD: &str = "LATTICE_NO_DOWNLOAD";
@@ -34,9 +39,11 @@ pub struct Download {
     /// Its name, as the page asks for it.
     pub name: &'static str,
     pub version: &'static str,
-    url: &'static str,
+    /// Where it's downloaded from; the Dockerfile downloads it from there
+    /// too, checking the same SHA-256.
+    pub url: &'static str,
     size: u64,
-    sha256: &'static str,
+    pub sha256: &'static str,
 }
 
 impl Download {
@@ -101,6 +108,38 @@ impl Download {
         fs::rename(&partial, &path)
             .with_context(|| format!("couldn't move it to {}", path.display()))?;
         Ok(path)
+    }
+}
+
+/// A download for the server: found in the cache, or downloaded the first
+/// time it's wanted, once, whoever wants it meanwhile waiting.
+pub struct Fetched {
+    download: &'static Download,
+    /// Why it couldn't be had, once trying has failed: it isn't tried
+    /// again while the server runs.
+    failed: Mutex<Option<String>>,
+}
+
+impl Fetched {
+    pub fn new(download: &'static Download) -> Fetched {
+        Fetched {
+            download,
+            failed: Mutex::new(None),
+        }
+    }
+
+    /// The file, downloading it first if it isn't in the cache, or why it
+    /// can't be had.
+    pub fn get(&self) -> Result<PathBuf, String> {
+        let mut failed = self.failed.lock().unwrap_or_else(|err| err.into_inner());
+        if let Some(why) = failed.as_ref() {
+            return Err(why.clone());
+        }
+        let got = self.download.fetch().map_err(|err| format!("{err:#}"));
+        if let Err(why) = &got {
+            *failed = Some(why.clone());
+        }
+        got
     }
 }
 

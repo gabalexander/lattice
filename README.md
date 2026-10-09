@@ -5,8 +5,7 @@ a diagram for every part, code names linked to the exact line they're defined on
 code to answer. It runs on your own machine and uses only your Claude subscription, through Claude Code.
 
 > [!NOTE]
-> lattice is young: `lattice doctor` works today, and the server, the web app and the generator are landing
-> now.
+> lattice is young: the server, the web app and the generator are landing now.
 
 ## Install
 
@@ -32,7 +31,11 @@ lattice sync .            # write again what changed since its last version
 
 | Page | What's in it |
 | --- | --- |
+| [docs/cli.md](docs/cli.md) | The commands, and how a repository is named |
+| [docs/web.md](docs/web.md) | The web app: its pages, what it asks of the server, and how to build it |
+| [docs/server.md](docs/server.md) | The server, its API and its jobs, and how it keeps other sites out |
 | [docs/configuration.md](docs/configuration.md) | The settings, and where lattice keeps its data |
+| [docs/docker.md](docs/docker.md) | lattice in Docker: the image, Claude Code's login, private repositories |
 | [docs/claude.md](docs/claude.md) | How lattice runs Claude Code: read-only, locked down, with a budget |
 | [docs/index.md](docs/index.md) | The symbol index the code links come from: SCIP indexers, tree-sitter, paths |
 
