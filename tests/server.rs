@@ -11,7 +11,7 @@ use lattice::server::{self, Running};
 use lattice::time::Timestamp;
 use serde_json::{Value, json};
 use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::net::{Ipv4Addr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
@@ -204,7 +204,7 @@ struct Served {
 
 impl Served {
     fn start(fake: Fake) -> Served {
-        let running = server::start(Some(0), Arc::new(fake)).unwrap();
+        let running = server::start(Ipv4Addr::LOCALHOST, Some(0), Arc::new(fake)).unwrap();
         let port = running.port();
         Served {
             running: Some(running),

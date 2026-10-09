@@ -30,7 +30,7 @@ the app shows as it is.
 | Request | Answer |
 | --- | --- |
 | `GET /api/repos` | `[{key, name, source: {kind: "local", path} or {kind: "git", url}, versions: [{n, commit, branch, model, at, cost_usd}], job}]` |
-| `POST /api/repos` `{source}` | `{key}`: the repo, added (a git source is cloned into lattice's data directory) or found |
+| `POST /api/repos` `{source}` | `{key}`: the repo, added or found (a git source is cloned into lattice's data directory by its first job) |
 | `DELETE /api/repos/<key>` | 204 |
 | `POST /api/repos/<key>/jobs` `{kind, model, concurrency}` | the job: `kind` is `build`, `sync`, `resume` or `regenerate`; `model` and `concurrency` null for the settings' |
 | `GET /api/jobs/<id>` | the job: `{id, repo, kind, state, model, concurrency, created, progress, started, finished, error, version}`, `state` one of `queued`, `running`, `done`, `failed`, `cancelled`; a repo's `job` is its latest, in any state |

@@ -39,9 +39,11 @@ pub struct Download {
     /// Its name, as the page asks for it.
     pub name: &'static str,
     pub version: &'static str,
-    url: &'static str,
+    /// Where it's downloaded from; the Dockerfile downloads it from there
+    /// too, checking the same SHA-256.
+    pub url: &'static str,
     size: u64,
-    sha256: &'static str,
+    pub sha256: &'static str,
 }
 
 impl Download {
