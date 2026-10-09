@@ -52,8 +52,12 @@ writer once, with what's wrong; what's still wrong then is dropped. A wrong link
   citation's label must name the file it points into, and is made to say the lines it points at.
 - **Links on the page.** A `#id` must be a part of the page.
 - **Diagrams.** A diagram must read with lattice's own mermaid reader once its styles are dropped, the slips
-  models make fixed (`->>>`, a `<placeholder>`, spaces inside a shape) and a flowchart's labels quoted: the
-  subset the web app's mermaid draws. A subsection or a section may draw one diagram in its text besides its
+  models make fixed (`->>>`, a `<placeholder>`, spaces inside a shape, a name that is one of mermaid's keywords)
+  and a flowchart's labels quoted: the subset the web app's mermaid draws. Mermaid's lexers take a keyword for
+  what it means wherever a name starts, so a node called `call` or `end`, or a participant called `Note`, is a
+  parse error in the browser: such a name becomes `call_` everywhere in the diagram, still showing `call` as its
+  label, alias or description (an entity is quoted instead), and one the repair misses is refused
+  (`src/mermaid/keywords.rs`, with the words of each kind). A subsection or a section may draw one diagram in its text besides its
   card, the overview three; one that says what another on the same text says is dropped.
 - **A text at all.** An empty answer, a failure the writer reported, or a text that is really a refusal or a
   report of its tools failing has the writer run again, once.

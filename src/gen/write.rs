@@ -100,8 +100,10 @@ line: worker[\"Worker.run<br/>(internal/queue/worker.go)\"]; never ideas like \"
 Arrows say in a few words what goes along them: a -->|claims due jobs| b. A dashed arrow (-.->) \
 for what happens on failure or seldom. A subgraph may group the boxes of one component.
 - 4 to 12 boxes, 15 at most. Its caption: one sentence on what it shows.
-- Syntax mermaid draws: node ids of letters, digits and underscores, never a keyword (end, \
-graph, subgraph, style, class); every node label in double quotes, a[\"Label\"], with no spaces \
+- Syntax mermaid draws: node ids of letters, digits and underscores, never a mermaid keyword \
+such as end, call, class, click, default, graph, subgraph, style (suffix it: call_[\"call\"]), \
+nor a participant, class, state or entity named one (Note, Loop, End, Link, Box, Option, Class: \
+`participant Note_ as Note`); every node label in double quotes, a[\"Label\"], with no spaces \
 inside the shape's brackets, a{\"Choice\"} not a{ \"Choice\" }; no <placeholder> in a label \
 (write {kind}); no %% comments, style, classDef, click or colours; no HTML but <br/>; no \
 semicolons or double quotes inside labels or messages; in a sequenceDiagram, `participant A as \

@@ -21,6 +21,11 @@
 //! functions that never panic, whatever they're given (the tests throw
 //! garbage at the parsers): the diagrams come from what a model wrote.
 //!
+//! The readers are more lenient than mermaid.js about names: one that is a
+//! keyword of its kind, a node called `call` or a participant `Note`, reads
+//! here and is a parse error in the browser. [`keywords`] renames those, and
+//! [`check`] refuses one left.
+//!
 //! Adapted from crystal's `src/mermaid/` (MIT), itself from docket's
 //! `docket-mermaid` crate, without the drawing in a terminal.
 
@@ -28,6 +33,7 @@ mod class;
 mod er;
 mod flowchart;
 pub mod graph;
+pub mod keywords;
 pub mod sequence;
 mod state;
 
@@ -91,9 +97,17 @@ pub fn parse(source: &str) -> Result<Diagram, String> {
 }
 
 /// Whether `source` is a diagram fit for a page, and its kind; or why it
-/// isn't: it doesn't read, it's empty, or it's too big to read well.
+/// isn't: it doesn't read, it's empty, it's too big to read well, or a name
+/// in it is one of mermaid's keywords.
 pub fn check(source: &str) -> Result<Kind, String> {
-    match parse(source)? {
+    let diagram = parse(source)?;
+    if let Some(name) = keywords::reserved_name(&diagram) {
+        return Err(format!(
+            "`{name}` is one of mermaid's keywords, which can't be a name: call it `{}`",
+            keywords::renamed(diagram.kind(), &name)
+        ));
+    }
+    match diagram {
         Diagram::Sequence(diagram) if diagram.participants.is_empty() => {
             Err("the diagram has no participants".into())
         }
