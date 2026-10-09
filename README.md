@@ -3,3 +3,39 @@
 A wiki for your codebase, written by Claude and kept up to date: one page per repository with an outline,
 a diagram for every part, code names linked to the exact line they're defined on, and a chat that reads the
 code to answer. It runs on your own machine and uses only your Claude subscription, through Claude Code.
+
+> [!NOTE]
+> lattice is young: `lattice doctor` works today, and the server, the web app and the generator are landing
+> now.
+
+## Install
+
+lattice needs [Claude Code](https://docs.anthropic.com/en/docs/claude-code), logged in, and git.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/gabalexander/lattice/main/install.sh | sh
+```
+
+Or from source, with Rust 1.88 or later (and Node 22 for the web app): `make install`.
+
+## Quick start
+
+```sh
+lattice doctor            # check Claude Code, git and the settings
+lattice open              # the web app: give it a path, a git URL or owner/repo, and Generate
+lattice build golang/go   # or write a wiki from the command line
+lattice open .            # this repository's wiki
+lattice sync .            # write again what changed since its last version
+```
+
+## Documentation
+
+| Page | What's in it |
+| --- | --- |
+| [docs/configuration.md](docs/configuration.md) | The settings, and where lattice keeps its data |
+| [docs/claude.md](docs/claude.md) | How lattice runs Claude Code: read-only, locked down, with a budget |
+
+## License
+
+MIT. lattice adapts code from [crystal](https://github.com/gabalexander/crystal) and
+[deepwiki-by-cc](https://github.com/andyhtran/deepwiki-by-cc): see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

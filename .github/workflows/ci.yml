@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+
+  # The oldest Rust the README promises, which Cargo.toml's rust-version names.
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --locked
+
+  # The web app in web/: its lint, type check, tests and build. It's
+  # skipped, step by step, until web/ is there.
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: web
+        name: Look for the web app
+        run: |
+          if [ -f web/package.json ]; then echo "present=true"; else echo "present=false"; fi >> "$GITHUB_OUTPUT"
+      - if: steps.web.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - if: steps.web.outputs.present == 'true'
+        run: npm --prefix web ci
+      - if: steps.web.outputs.present == 'true'
+        run: npm --prefix web run lint --if-present
+      - if: steps.web.outputs.present == 'true'
+        run: npm --prefix web run check
+      - if: steps.web.outputs.present == 'true'
+        run: npm --prefix web test
+      - if: steps.web.outputs.present == 'true'
+        run: npm --prefix web run build
