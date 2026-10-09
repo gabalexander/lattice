@@ -48,10 +48,10 @@ SOFTWARE.
 https://github.com/gabalexander/crystal
 
 Much of lattice started in crystal: the modules that say so at their top (`ask`, `claude`, `clipboard`,
-`config`, `db`, `download`, `editor`, `export`, `http`, `links`, `mermaid`, `output`, `printable`, `secrets`,
-`server`, `shell`), `install.sh`, the workflows, the Makefile and the Homebrew formula. crystal's
-`src/mermaid/` is itself adapted from docket's `docket-mermaid` crate, by the same author. The web app's wiki
-page (`web/src/lib/wiki/`, `web/src/lib/markdown.ts`, `web/src/lib/mermaid.ts`, `web/mock/synth.mjs`,
+`config`, `db`, `download`, `editor`, `export`, `glob`, `http`, `index`, `links`, `mermaid`, `output`,
+`printable`, `secrets`, `server`, `shell`), `install.sh`, the workflows, the Makefile and the Homebrew formula.
+crystal's `src/mermaid/` is itself adapted from docket's `docket-mermaid` crate, by the same author. The web
+app's wiki page (`web/src/lib/wiki/`, `web/src/lib/markdown.ts`, `web/src/lib/mermaid.ts`, `web/mock/synth.mjs`,
 `web/scripts/perf.mjs`) is carried over from crystal's (`assets/wiki/`): its layout, its markdown renderer and
 tests, mermaid's theme, the lazy drawing and the zoom.
 

@@ -74,8 +74,9 @@ in.
 ## Layout
 
 - `src/main.rs`: the command line (clap): `serve` (and `--stop`), `open`, `export`, `build` and `sync`, which
-  run a job here through `jobs::run`, `status`, and `doctor`, which checks the settings, the data, git and
-  Claude Code, asking it to read a file
+  run a job here through `jobs::run`, `status`, `index`, which indexes a checkout and says how each language
+  was and what spans link to, and `doctor`, which checks the settings, the data, git and Claude Code, asking it
+  to read a file
 - `src/lib.rs`: the modules, for the binary and the tests
 - `build.rs`: the web app's files under `web/build/`, when it's built, carried into the binary as
   `web::FILES`
@@ -117,12 +118,30 @@ in.
 - `src/cancel.rs`: `Cancel`, how a job or a chat is asked to stop, shared by its clones, and a wait that ends
   when it is
 - `src/config.rs`: the settings in `config.toml`: model, concurrency, budget, the chat's model and budget,
-  excludes; read, checked, a model's name never read as an option
+  excludes, and `[index]`; read, checked, a model's name never read as an option
 - `src/db.rs`: the SQLite database (WAL, migrations by `user_version`): repositories under their keys, the
   versions of each one's wiki, and the jobs that build them, queued, running and over, with their progress;
   a job left running by a server that stopped is failed as it starts
 - `src/download.rs`: mermaid, downloaded once at a pinned version with curl, checked against its SHA-256 and
   kept in the cache
+- `src/glob.rs`: globs as `.gitignore` writes them, for `exclude` and `[index] paths_only`
+- `src/index/`: the symbol index the wiki's `code:` links come from (`docs/index.md`): `Index::build` reads a
+  checkout at a commit in three tiers, `lookup` resolves a code span to the one definition it names or says it
+  can't tell, `defined_at` and `outline` serve the writers; adapted from crystal's `src/wiki/index/`
+  - `mod.rs`: `Def`, `DefKind`, `Lookup`, `IndexSettings`, `Index`, each language's tier and why
+  - `files.rs`: the files at the commit from `git ls-tree`, their blobs from one `git cat-file --batch`, a
+    file's language, its module or package, the programs a manifest installs
+  - `grammar.rs` (and `grammar/tests.rs`): the syntactic tier, tree-sitter's Rust, Go, Python, TypeScript and
+    JavaScript, Java, C and C++, walked by rules of each, with serde keys, clap and cobra commands and flags,
+    struct tags and the names constants hold
+  - `keywords.rs`: the languages with no grammar compiled in, read by their keywords
+  - `precise.rs`: the precise tier, the SCIP indexers installed here, held to a time and a memory, in the
+    checkout or a copy of the commit, what each said kept by its files' blobs
+  - `scip.rs`: a reader of SCIP's protobuf, a document at a time, and its symbols named as lattice names them
+  - `cache.rs`: what the grammars read, kept by blob in `syntax.json`, parsed on a few threads
+  - `lookup.rs`: a span read as a path, a command line, a flag, a config key, a name or a value, and several
+    definitions narrowed to the one meant, or left unlinked
+  - `tests.rs`: the lookup rules on repositories held in memory
 - `src/mermaid/`: reading mermaid diagrams, to check one a model wrote: the five kinds a model explains code
   with read into a graph or a sequence, anything else refused with a reason, and a cap on how big one may be
   - `graph.rs`: the boxes, edges and frames every kind but the sequence is read into
@@ -161,12 +180,15 @@ in.
   - `mock/`: a stand-in for lattice's API with its fixtures, and the synthetic wiki; `scripts/perf.mjs`: the
     page measured in headless Chrome
 - `tests/cli.rs`: the binary and the runner end to end, with a fake `claude`: `doctor`, `build` and `status`,
-  `serve` one a data directory, `open` starting one in the background
+  `serve` one a data directory, `open` starting one in the background; and the index on each fixture
+  repository, with a fake `rust-analyzer`
+- `tests/index/`: a small repository a language, each with the spans that must link (`spans.tsv`), and a
+  `.scip` that rust-analyzer wrote of the Rust one
 - `tests/server.rs`: the API end to end, against a server of the test's own, with a fake generator, a fake
   `claude` and a fake editor
 - `tests/release.rs`: the release's archives named alike everywhere
 - `tests/mermaid/`: diagrams the mermaid tests read
-- `docs/`: a page for each part: `cli.md`, `server.md`, `configuration.md`, `claude.md`, `web.md`
+- `docs/`: a page for each part: `cli.md`, `server.md`, `configuration.md`, `claude.md`, `web.md`, `index.md`
 - `install.sh`, `packaging/homebrew/`, `.github/workflows/`: installing and releasing
 - `Dockerfile`, `docker-compose.yml`, `docker/`: the container: lattice, git and Claude Code on Alpine, built in
   stages, with its entrypoint (ssh set up for private repositories), `git-credential-env` (a

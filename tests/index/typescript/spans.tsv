@@ -1,0 +1,13 @@
+# A span, the files it's near (comma-separated, or -), and what it links to
+# (- for nothing): read by tests/cli.rs.
+Loom	-	src/loom.ts#L13-L23
+Loom.weave	-	src/loom.ts#L16-L18
+Loom.create()	-	src/loom.ts#L20-L22
+Thread	-	src/loom.ts#L3-L6
+Thread.color	-	src/loom.ts#L4
+Weave.Twill	-	src/loom.ts#L10
+spin	-	src/loom.ts#L25
+cut()	-	src/loom.ts#L27-L29
+LOOM_TOKEN	-	src/loom.ts#L1
+loom weave	-	src/cli.ts#L4
+--width	-	src/cli.ts#L4

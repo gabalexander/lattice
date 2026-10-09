@@ -1,0 +1,11 @@
+# A span, the files it's near (comma-separated, or -), and what it links to
+# (- for nothing): read by tests/cli.rs.
+Sled	-	Sled.kt#L3-L7
+Sled.pull	-	Sled.kt#L4-L6
+harness	-	Sled.kt#L9
+Hut::Stove	-	hut.rb#L2-L8
+Stove.light!	-	hut.rb#L5-L7
+Stove::MAX	-	hut.rb#L3
+usage	-	start.sh#L4-L6
+PREFIX	start.sh	start.sh#L2
+PREFIX	-	-

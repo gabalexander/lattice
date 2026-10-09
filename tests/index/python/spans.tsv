@@ -1,0 +1,14 @@
+# A span, the files it's near (comma-separated, or -), and what it links to
+# (- for nothing): read by tests/cli.rs.
+Oven	-	src/kiln/oven.py#L7-L16
+kiln.oven.Oven	-	src/kiln/oven.py#L7-L16
+Oven.fire	-	src/kiln/oven.py#L12-L16
+Oven.door	-	src/kiln/oven.py#L10
+cool()	-	src/kiln/oven.py#L19-L20
+MAX_HEAT	-	src/kiln/oven.py#L3
+KILN_HEAT	-	src/kiln/oven.py#L4
+kiln.oven	-	src/kiln/oven.py
+--heat	-	src/kiln/cli.py#L6
+-H	-	src/kiln/cli.py#L6
+--dry-run	-	src/kiln/cli.py#L7
+inner	-	-

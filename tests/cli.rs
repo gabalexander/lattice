@@ -6,6 +6,9 @@
 
 use lattice::cancel::Cancel;
 use lattice::claude::{self, Ask, Event, Reason, Tools};
+use lattice::index::Def;
+use serde_json::Value;
+use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
@@ -119,7 +122,8 @@ echo '{{"type":"result","subtype":"success","is_error":false,"result":"'"$said"'
         self.command(args).output().unwrap()
     }
 
-    /// Runs git in `dir`, as the tests need it, and gives what it printed.
+    /// Runs git in `dir`, as the tests need it, with no settings but the
+    /// test's, and gives what it printed.
     fn git(&self, dir: &Path, args: &[&str]) -> String {
         let out = Command::new("git")
             .arg("-C")
@@ -129,8 +133,13 @@ echo '{{"type":"result","subtype":"success","is_error":false,"result":"'"$said"'
                 "user.name=lattice",
                 "-c",
                 "user.email=lattice@example.com",
+                "-c",
+                "commit.gpgsign=false",
+                "-c",
+                "init.defaultBranch=main",
             ])
             .args(args)
+            .env("HOME", self.dir.path())
             .env("GIT_CONFIG_GLOBAL", "/dev/null")
             .env("GIT_CONFIG_NOSYSTEM", "1")
             .output()
@@ -149,6 +158,61 @@ echo '{{"type":"result","subtype":"success","is_error":false,"result":"'"$said"'
         self.git(&root, &["add", "-A"]);
         self.git(&root, &["commit", "-q", "-m", "first"]);
         root
+    }
+
+    /// The fixture repository `tests/index/<name>/`, but its `spans.tsv`,
+    /// committed in a directory of the test's own.
+    fn fixture_repo(&self, name: &str) -> PathBuf {
+        let repo = self.dir.path().join(name);
+        copy_dir(&fixture(name), &repo);
+        std::fs::remove_file(repo.join("spans.tsv")).unwrap();
+        self.git(&repo, &["init", "-q"]);
+        self.git(&repo, &["add", "."]);
+        self.git(&repo, &["commit", "-q", "-m", name]);
+        repo
+    }
+
+    /// `lattice index --json` on `repo`, its report.
+    fn index(&self, repo: &Path, args: &[&str]) -> Value {
+        let mut all = vec!["index", "--json", repo.to_str().unwrap()];
+        all.extend(args);
+        let out = self.run(&all);
+        assert!(out.status.success(), "{}", stderr(&out));
+        serde_json::from_slice(&out.stdout).unwrap()
+    }
+}
+
+/// `tests/index/<name>`, a fixture repository for the symbol index.
+fn fixture(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/index")
+        .join(name)
+}
+
+/// Copies the directory `from`, all of it, to `to`.
+fn copy_dir(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        match path.is_dir() {
+            true => copy_dir(&path, &to.join(entry.file_name())),
+            false => {
+                std::fs::copy(&path, to.join(entry.file_name())).unwrap();
+            }
+        }
+    }
+}
+
+/// Where a lookup in an index's report links: its one definition's
+/// target, or `-` for none.
+fn linked(lookup: &Value) -> String {
+    match lookup["found"].as_str() {
+        Some("unique") => {
+            let def: Def = serde_json::from_value(lookup["defs"][0].clone()).unwrap();
+            def.target()
+        }
+        _ => "-".to_string(),
     }
 }
 
@@ -171,7 +235,7 @@ fn it_says_its_version_and_its_commands() {
     );
     let help = stdout(&home.run(&["--help"]));
     for command in [
-        "serve", "open", "export", "build", "sync", "status", "doctor",
+        "serve", "open", "export", "build", "sync", "status", "index", "doctor",
     ] {
         assert!(help.contains(command), "{command}: {help}");
     }
@@ -444,19 +508,21 @@ fn run_with(
     ask: &Ask,
     dir: &Path,
     cancel: &Cancel,
-) -> (Result<claude::Answer, claude::Failed>, Vec<Event>) {
+) -> (Result<claude::Answer, claude::Failed>, Vec<Event>, Duration) {
     run_in(home, ask, dir, cancel, &[])
 }
 
-/// [`run_with`], with the variables `env` set in this process meanwhile.
+/// [`run_with`], with the variables `env` set in this process meanwhile,
+/// and how long the run took, waiting for the other tests' not counted.
 fn run_in(
     home: &Home,
     ask: &Ask,
     dir: &Path,
     cancel: &Cancel,
     env: &[(&str, &str)],
-) -> (Result<claude::Answer, claude::Failed>, Vec<Event>) {
+) -> (Result<claude::Answer, claude::Failed>, Vec<Event>, Duration) {
     let _held = PATH_HELD.lock().unwrap_or_else(|err| err.into_inner());
+    let started = Instant::now();
     let path = std::env::var_os("PATH");
     // SAFETY: the tests that change the environment hold PATH_HELD while
     // they do, and nothing else here reads it meanwhile.
@@ -468,6 +534,7 @@ fn run_in(
     }
     let mut events = Vec::new();
     let answered = claude::run(ask, dir, cancel, &mut |event| events.push(event));
+    let took = started.elapsed();
     // SAFETY: as above.
     unsafe {
         for (name, _) in env {
@@ -477,7 +544,7 @@ fn run_in(
             std::env::set_var("PATH", path);
         }
     }
-    (answered, events)
+    (answered, events, took)
 }
 
 #[test]
@@ -492,7 +559,7 @@ fn a_run_streams_what_claude_does_and_leaves_its_session_behind() {
         system: "Answer briefly.".into(),
         ..Ask::new("sonnet", "What does marker.txt say?")
     };
-    let (answered, events) = run_in(&home, &ask, &repo, &Cancel::new(), &[("CLAUDECODE", "1")]);
+    let (answered, events, _) = run_in(&home, &ask, &repo, &Cancel::new(), &[("CLAUDECODE", "1")]);
     let answer = answered.unwrap();
     assert_eq!(answer.text, "the word");
     assert_eq!(answer.cost_usd, 0.03);
@@ -542,7 +609,7 @@ fn a_run_cancelled_or_out_of_time_is_stopped_with_what_it_started() {
         later.cancel();
     });
     let started = Instant::now();
-    let (answered, _) = run_with(&home, &Ask::new("sonnet", "hi"), home.dir.path(), &cancel);
+    let (answered, _, _) = run_with(&home, &Ask::new("sonnet", "hi"), home.dir.path(), &cancel);
     let failed = answered.unwrap_err();
     assert_eq!(failed.reason, Reason::Cancelled);
     assert!(started.elapsed() < Duration::from_secs(10));
@@ -562,7 +629,7 @@ fn a_run_cancelled_or_out_of_time_is_stopped_with_what_it_started() {
         timeout: Duration::from_millis(300),
         ..Ask::new("sonnet", "hi")
     };
-    let (answered, _) = run_with(&home, &ask, home.dir.path(), &Cancel::new());
+    let (answered, _, _) = run_with(&home, &ask, home.dir.path(), &Cancel::new());
     assert_eq!(answered.unwrap_err().reason, Reason::TimedOut);
 }
 
@@ -586,14 +653,14 @@ fi
         ),
     );
     let once = Ask::new("sonnet", "hi");
-    let (answered, _) = run_with(&home, &once, home.dir.path(), &Cancel::new());
+    let (answered, _, _) = run_with(&home, &once, home.dir.path(), &Cancel::new());
     assert_eq!(answered.unwrap_err().reason, Reason::Passing);
     std::fs::remove_file(&tries).unwrap();
     let again = Ask {
         retries: 1,
         ..Ask::new("sonnet", "hi")
     };
-    let (answered, _) = run_with(&home, &again, home.dir.path(), &Cancel::new());
+    let (answered, _, _) = run_with(&home, &again, home.dir.path(), &Cancel::new());
     let answer = answered.unwrap();
     assert_eq!(answer.text, "done");
     assert!(
@@ -613,13 +680,242 @@ fn a_claude_that_refuses_its_arguments_says_why() {
         retries: 3,
         ..Ask::new("sonnet", "hi")
     };
-    let started = Instant::now();
-    let (answered, _) = run_with(&home, &ask, home.dir.path(), &Cancel::new());
+    let (answered, _, took) = run_with(&home, &ask, home.dir.path(), &Cancel::new());
     let failed = answered.unwrap_err();
     assert_eq!(failed.reason, Reason::Other, "it isn't tried again");
     assert_eq!(
         failed.why,
         "claude said: error: unknown option '--restricted'"
     );
-    assert!(started.elapsed() < Duration::from_secs(2));
+    assert!(took < Duration::from_secs(2));
+}
+
+#[test]
+fn the_index_links_each_language_s_spans_where_they_re_defined() {
+    let home = Home::new();
+    let mut wrong = Vec::new();
+    for language in [
+        "rust",
+        "go",
+        "python",
+        "typescript",
+        "java",
+        "cpp",
+        "keywords",
+    ] {
+        let repo = home.fixture_repo(language);
+        let listed = std::fs::read_to_string(fixture(language).join("spans.tsv")).unwrap();
+        // The spans, by the files they're near.
+        let mut near: BTreeMap<&str, Vec<(&str, &str)>> = BTreeMap::new();
+        for line in listed.lines().filter(|line| !line.starts_with('#')) {
+            let [span, files, target] = line.split('\t').collect::<Vec<_>>()[..] else {
+                panic!("{language}: {line:?} isn't a span, its files and its target");
+            };
+            near.entry(files).or_default().push((span, target));
+        }
+        for (files, spans) in near {
+            let mut args: Vec<&str> = Vec::new();
+            for file in files.split(',').filter(|file| *file != "-") {
+                args.extend(["--near", file]);
+            }
+            args.push("--");
+            args.extend(spans.iter().map(|(span, _)| *span));
+            let report = home.index(&repo, &args);
+            let lookups = report["lookups"].as_array().unwrap();
+            for ((span, target), lookup) in spans.iter().zip(lookups) {
+                let got = linked(lookup);
+                if got != *target {
+                    wrong.push(format!(
+                        "{language}: {span:?} near {files}: {got}, not {target}"
+                    ));
+                }
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+#[test]
+fn the_index_says_how_each_language_was_indexed_and_reads_again_only_what_changed() {
+    let home = Home::new();
+    let repo = home.fixture_repo("rust");
+    let out = home.run(&["index", repo.to_str().unwrap()]);
+    let said = stdout(&out);
+    assert!(out.status.success(), "{said}{}", stderr(&out));
+    assert!(said.starts_with("indexed 4 files, "), "{said}");
+    assert!(
+        said.contains(
+            "Rust: syntactic (3 files, 41 definitions): rust-analyzer isn't installed \
+             (rustup component add rust-analyzer)"
+        ),
+        "{said}"
+    );
+    let caches = home.dir.path().join("cache/lattice/index");
+    let kept: Vec<PathBuf> = (std::fs::read_dir(&caches).unwrap())
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    assert_eq!(kept.len(), 1, "{kept:?}");
+    let syntax = kept[0].join("syntax.json");
+    // What's kept is read in place of the blob: a blob kept as having
+    // something else is taken at its word.
+    let text = std::fs::read_to_string(&syntax).unwrap();
+    assert!(text.contains("SessionSettings"));
+    std::fs::write(&syntax, text.replace("SessionSettings", "KeptFromBefore")).unwrap();
+    let look = |spans: &[&str]| -> Vec<String> {
+        let mut args = vec!["--"];
+        args.extend(spans);
+        let report = home.index(&repo, &args);
+        report["lookups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(linked)
+            .collect()
+    };
+    assert_eq!(look(&["KeptFromBefore"]), ["src/config.rs#L19-L21"]);
+    // A file that changed is read again; the others are still the cache's.
+    let session = repo.join("src/session.rs");
+    let mut text = std::fs::read_to_string(&session).unwrap();
+    text.push_str("\npub fn ring_twice() {}\n");
+    std::fs::write(&session, text).unwrap();
+    home.git(&repo, &["commit", "-q", "-am", "twice"]);
+    assert_eq!(
+        look(&["ring_twice", "KeptFromBefore", "Session::stop"]),
+        [
+            "src/session.rs#L37",
+            "src/config.rs#L19-L21",
+            "src/session.rs#L16-L18"
+        ]
+    );
+    // An earlier commit is indexed as it was.
+    let report = home.index(&repo, &["--commit", "HEAD~1", "--", "ring_twice"]);
+    assert_eq!(linked(&report["lookups"][0]), "-");
+    let none = home.run(&[
+        "index",
+        repo.to_str().unwrap(),
+        "--commit",
+        "no-such-commit",
+    ]);
+    assert_eq!(none.status.code(), Some(1));
+    assert!(
+        stderr(&none).contains("there's no commit no-such-commit to index"),
+        "{}",
+        stderr(&none)
+    );
+    let outside = home.run(&["index", home.bin().to_str().unwrap()]);
+    assert!(
+        stderr(&outside).contains("isn't in a git checkout"),
+        "{}",
+        stderr(&outside)
+    );
+}
+
+#[test]
+fn a_scip_indexer_makes_its_language_precise_and_runs_again_only_once_its_files_change() {
+    let home = Home::new();
+    let repo = home.fixture_repo("rust");
+    let runs = home.dir.path().join("indexer.runs");
+    // rust-analyzer as it's run, writing what it wrote on the fixture.
+    home.fake(
+        "rust-analyzer",
+        &format!(
+            r#"if [ "$1" = "--version" ]; then echo "rust-analyzer 0.3.3073"; exit 0; fi
+[ "$1" = scip ] && [ "$2" = . ] && [ "$3" = --output ] || exit 2
+cp '{scip}' "$4"
+echo "$PWD" >> '{runs}'
+"#,
+            scip = fixture("rust.scip").display(),
+            runs = runs.display()
+        ),
+    );
+    let look = || {
+        home.index(
+            &repo,
+            &["--near", "src/main.rs", "--", "new", "Session::stop"],
+        )
+    };
+    let report = look();
+    let rust = &report["languages"][0];
+    assert_eq!(rust["language"], "Rust");
+    assert_eq!(
+        (rust["tier"].as_str(), rust["precise_files"].as_u64()),
+        (Some("precise"), Some(3))
+    );
+    let note = rust["note"].as_str().unwrap();
+    assert!(
+        note.starts_with("by rust-analyzer 0.3.3073-standalone"),
+        "{note}"
+    );
+    // `new` is ambiguous to a grammar, but main.rs calls `Session::new`.
+    let lookups = report["lookups"].as_array().unwrap();
+    assert_eq!(linked(&lookups[0]), "src/session.rs#L8-L13");
+    assert_eq!(lookups[0]["defs"][0]["precise"], true);
+    assert_eq!(linked(&lookups[1]), "src/session.rs#L16-L18");
+    // It ran in the checkout, which is at the commit.
+    let ran = std::fs::read_to_string(&runs).unwrap();
+    assert_eq!(
+        ran.lines().collect::<Vec<_>>(),
+        [repo.canonicalize().unwrap().to_str().unwrap()]
+    );
+    look();
+    assert_eq!(
+        std::fs::read_to_string(&runs).unwrap(),
+        ran,
+        "what it said is kept"
+    );
+    std::fs::write(repo.join("README.md"), "# bell\n").unwrap();
+    home.git(&repo, &["add", "."]);
+    home.git(&repo, &["commit", "-q", "-m", "readme"]);
+    look();
+    assert_eq!(
+        std::fs::read_to_string(&runs).unwrap(),
+        ran,
+        "nothing it reads changed"
+    );
+    let without = home.index(&repo, &["--near", "src/main.rs", "--", "new"]);
+    assert_eq!(linked(&without["lookups"][0]), "src/session.rs#L8-L13");
+    home.configure("[index]\nprecise = false\n");
+    let without = home.index(&repo, &["--near", "src/main.rs", "--", "new"]);
+    assert_eq!(linked(&without["lookups"][0]), "-", "a grammar can't tell");
+    assert_eq!(without["languages"][0]["tier"], "syntactic");
+}
+
+#[test]
+fn an_indexer_that_fails_or_hangs_leaves_its_language_to_its_grammar() {
+    let home = Home::new();
+    let repo = home.fixture_repo("rust");
+    home.fake(
+        "rust-analyzer",
+        r#"if [ "$1" = "--version" ]; then echo "rust-analyzer 0.3.3073"; exit 0; fi
+echo "error: no cargo here" >&2
+exit 101
+"#,
+    );
+    let report = home.index(&repo, &["--", "Session::stop"]);
+    let note = report["languages"][0]["note"].as_str().unwrap();
+    assert!(
+        note.starts_with(
+            "rust-analyzer failed (exit status: 101): error: no cargo here, so the grammar \
+             read it instead; its log is "
+        ),
+        "{note}"
+    );
+    assert_eq!(report["languages"][0]["tier"], "syntactic");
+    assert_eq!(linked(&report["lookups"][0]), "src/session.rs#L16-L18");
+    home.fake(
+        "rust-analyzer",
+        r#"if [ "$1" = "--version" ]; then echo "rust-analyzer 0.3.3073"; exit 0; fi
+sleep 30
+"#,
+    );
+    home.configure("[index]\nindexer_timeout_secs = 1\n");
+    let started = Instant::now();
+    let report = home.index(&repo, &["--", "Session::stop"]);
+    assert!(started.elapsed() < Duration::from_secs(15));
+    let note = report["languages"][0]["note"].as_str().unwrap();
+    assert!(
+        note.starts_with("rust-analyzer took longer than 1s, so the grammar read it instead"),
+        "{note}"
+    );
+    assert_eq!(linked(&report["lookups"][0]), "src/session.rs#L16-L18");
 }

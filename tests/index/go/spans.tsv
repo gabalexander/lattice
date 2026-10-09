@@ -1,0 +1,20 @@
+# A span, the files it's near (comma-separated, or -), and what it links to
+# (- for nothing): read by tests/cli.rs.
+Server	-	engine/server.go#L14-L16
+engine.Server	-	engine/server.go#L14-L16
+Server.Serve	-	engine/server.go#L29-L31
+(*Server).Serve	-	engine/server.go#L29-L31
+func (s *Server) Stop()	-	engine/server.go#L34
+NewServer	-	engine/server.go#L24-L26
+Handler.Handle	-	engine/server.go#L20
+Config.Workers	-	engine/server.go#L10
+worker_count	-	engine/server.go#L10
+SHIP_HOME	-	engine/server.go#L5
+engine/	-	engine
+ship build	-	cmd/ship/main.go#L7-L10
+ship build --squash	-	cmd/ship/main.go#L20
+ship image build	-	cmd/ship/main.go#L12
+ship image build -f	-	cmd/ship/main.go#L21
+ship build --file	-	-
+--squash	-	cmd/ship/main.go#L20
+build	-	-

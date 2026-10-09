@@ -9,6 +9,7 @@
 | `lattice sync <repo>` | Writes again what changed since the wiki's latest version: a new version. |
 | `lattice status [repo]` | Each repository with its versions, whether its code has moved on since the latest, and its latest job. |
 | `lattice export <repo> <dir> [--version N]` | Writes a version of the wiki, the latest by default, as a static site that works from `file://` and on GitHub Pages. |
+| `lattice index <dir> [span...]` | Indexes the checkout `<dir>` is in as a build does, and says how each of its languages was indexed (by a SCIP indexer, its grammar or its keywords) and why, or what each code span given links to; `--near`, `--commit` and `--json` as [index.md](index.md) says. |
 | `lattice doctor [--model M]` | Checks the settings, the data directory, git and Claude Code (see [claude.md](claude.md)). |
 
 A repository is named by its key (`go`), by its path (`.`, `~/code/app`), by a git URL, or by GitHub's

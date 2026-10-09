@@ -1,5 +1,5 @@
 //! lattice's command line: `lattice serve`, `open`, `export`, `build`,
-//! `sync`, `status` and `doctor`. docs/cli.md says what each does.
+//! `sync`, `status`, `index` and `doctor`. docs/cli.md says what each does.
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
@@ -7,11 +7,12 @@ use lattice::cancel::Cancel;
 use lattice::config::{self, Config};
 use lattice::db::{Db, Ended, JobKind, Phase, Progress, Repo};
 use lattice::generator::{self, Report};
+use lattice::index::{Index, Lookup};
 use lattice::jobs::{self, BuildLock};
 use lattice::source::Source;
 use lattice::{claude, outln, output, paths, printable, repos, server, shell, signals};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command as Process, ExitCode};
 use std::sync::Mutex;
 
@@ -81,6 +82,27 @@ enum Command {
         /// The repository [default: all of them]
         repo: Option<String>,
     },
+    /// Index a repository's code as a build does, and say how each of its
+    /// languages was indexed (by a SCIP indexer, its grammar or its
+    /// keywords) and why; or, given code spans, what each links to.
+    Index {
+        /// The repository: a directory in a git checkout.
+        repo: PathBuf,
+        /// Code spans to look up, as a wiki writes them: `Session::stop`,
+        /// `src/db.rs`, `[index] precise`; after `--` for one starting with
+        /// `-`.
+        spans: Vec<String>,
+        /// A file the spans are about, preferred where a span could name
+        /// several things.
+        #[arg(long, value_name = "PATH")]
+        near: Vec<String>,
+        /// The commit to index [default: the checkout's HEAD]
+        #[arg(long, value_name = "REV")]
+        commit: Option<String>,
+        /// Print the report and the lookups as JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Check that lattice can do its work here: its settings, its data,
     /// git, and Claude Code, which it asks to read a file (a few cents).
     Doctor {
@@ -129,6 +151,13 @@ fn run(cli: Cli) -> Result<()> {
         Command::Build { repo, model } => build(&repo, JobKind::Build, model),
         Command::Sync { repo } => build(&repo, JobKind::Sync, None),
         Command::Status { repo } => status(repo.as_deref()),
+        Command::Index {
+            repo,
+            spans,
+            near,
+            commit,
+            json,
+        } => index(&repo, &spans, &near, commit.as_deref(), json),
         Command::Doctor { model } => doctor(model),
     }
 }
@@ -321,6 +350,91 @@ fn word<T: serde::Serialize>(value: &T) -> String {
         Ok(serde_json::Value::String(word)) => word,
         _ => String::new(),
     }
+}
+
+/// `lattice index`: the checkout `repo` is in indexed at `commit`, with its
+/// cache, and either how each language was indexed or what each of `spans`
+/// links to.
+fn index(
+    repo: &Path,
+    spans: &[String],
+    near: &[String],
+    commit: Option<&str>,
+    json: bool,
+) -> Result<()> {
+    let config = Config::load()?;
+    let root = git_line(repo, &["rev-parse", "--show-toplevel"])
+        .with_context(|| format!("{} isn't in a git checkout", repo.display()))?;
+    let root = PathBuf::from(root);
+    let rev = format!("{}^{{commit}}", commit.unwrap_or("HEAD"));
+    let commit = git_line(&root, &["rev-parse", "--verify", "--end-of-options", &rev])
+        .with_context(|| format!("there's no commit {} to index", commit.unwrap_or("HEAD")))?;
+    let cache = paths::index_dir(&root);
+    let index = Index::build(&root, &commit, &cache, &config.index_settings())?;
+    let looked: Vec<(&String, Lookup)> = (spans.iter())
+        .map(|span| (span, index.lookup(span, near)))
+        .collect();
+    if json {
+        let lookups: Vec<serde_json::Value> = (looked.iter())
+            .map(|(span, found)| {
+                let (found, defs) = match found {
+                    Lookup::Unique(def) => ("unique", vec![def]),
+                    Lookup::Ambiguous(defs) => ("ambiguous", defs.iter().collect()),
+                    Lookup::Missing => ("missing", Vec::new()),
+                };
+                serde_json::json!({"span": span, "found": found, "defs": defs})
+            })
+            .collect();
+        let report = serde_json::json!({
+            "commit": commit,
+            "files": index.files(),
+            "definitions": index.definitions(),
+            "seconds": index.took().as_secs_f64(),
+            "languages": index.report(),
+            "lookups": lookups,
+        });
+        return outln!("{}", serde_json::to_string_pretty(&report)?);
+    }
+    if looked.is_empty() {
+        for line in index.summary() {
+            outln!("{}", printable::line(&line))?;
+        }
+    }
+    for (span, found) in &looked {
+        let line = match found {
+            Lookup::Unique(def) => {
+                format!("{span} → {} ({} {})", def.target(), def.kind, def.qualified)
+            }
+            Lookup::Ambiguous(defs) => {
+                let some: Vec<String> = defs.iter().take(5).map(|def| def.target()).collect();
+                let more = match defs.len() > 5 {
+                    true => format!(", and {} more", defs.len() - 5),
+                    false => String::new(),
+                };
+                format!("{span}: could be {}{more}", some.join(", "))
+            }
+            Lookup::Missing => format!("{span}: nothing here"),
+        };
+        outln!("{}", printable::line(&line))?;
+    }
+    Ok(())
+}
+
+/// What `git -C dir args` says on its first line, or why it failed.
+fn git_line(dir: &Path, args: &[&str]) -> Result<String> {
+    let out = Process::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .output()
+        .context("couldn't run git: is it installed and on the PATH?")?;
+    let said = String::from_utf8_lossy(&out.stdout);
+    let line = said.lines().next().unwrap_or_default().trim().to_string();
+    if !out.status.success() || line.is_empty() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        bail!("git {}: {}", args[0], err.trim());
+    }
+    Ok(line)
 }
 
 /// `lattice doctor`: each check on a line of its own, and an error at the

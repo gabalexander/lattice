@@ -9,11 +9,14 @@
 //!   going on or cut short, and `v<n>/`, each version a build made, with
 //!   its `wiki.json`, `build.json` and `build.log`;
 //! - what it downloads, `$XDG_CACHE_HOME/lattice` (else `~/.cache/lattice`),
-//!   like mermaid ([`crate::download`]).
+//!   like mermaid ([`crate::download`]), and what the symbol index read of
+//!   each checkout, under `index/` ([`crate::index`]), which it reads again
+//!   when it's gone.
 //!
 //! The variables are what the tests set, to a directory of their own each,
 //! and what a container points at its volumes.
 
+use sha2::{Digest, Sha256};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -68,6 +71,26 @@ pub fn version_dir(key: &str, n: u32) -> PathBuf {
     repo_dir(key).join(format!("v{n}"))
 }
 
+/// Where the symbol index of the checkout at `root` keeps what it read
+/// between builds: under the checkout's name and a hash of its path, so
+/// that two checkouts with one name keep theirs apart.
+pub fn index_dir(root: &Path) -> PathBuf {
+    let name: String = (root
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .chars())
+    .map(|c| match c.is_ascii_alphanumeric() || "._-".contains(c) {
+        true => c,
+        false => '-',
+    })
+    .take(40)
+    .collect();
+    let hash = Sha256::digest(root.as_os_str().as_encoded_bytes());
+    let hash: String = hash[..6].iter().map(|byte| format!("{byte:02x}")).collect();
+    cache_dir().join("index").join(format!("{name}-{hash}"))
+}
+
 /// The directory the variable `name` says, or else `home_default` in the
 /// home directory.
 fn base(name: &str, home_default: &str) -> PathBuf {
@@ -118,5 +141,25 @@ mod tests {
         assert_eq!(version_dir("app", 3), data.join("repos/app/v3"));
         assert_eq!(db_file(), data.join("lattice.db"));
         assert!(config_file().ends_with("lattice/config.toml"));
+    }
+
+    #[test]
+    fn each_checkout_s_index_is_kept_apart_under_its_name() {
+        let app = index_dir(Path::new("/home/ann/src/app"));
+        let other = index_dir(Path::new("/home/ann/work/app"));
+        assert_eq!(app.parent(), Some(cache_dir().join("index").as_path()));
+        let name = app.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(
+            name.starts_with("app-") && name.len() == "app-".len() + 12,
+            "{name}"
+        );
+        assert_ne!(app, other);
+        let odd = index_dir(Path::new("/x/a b\nc"));
+        assert!(
+            odd.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("a-b-c-")
+        );
     }
 }
