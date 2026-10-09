@@ -1,0 +1,24 @@
+[package]
+name = "lattice"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "A code wiki for your own repositories, written by Claude Code and kept up to date"
+license = "MIT"
+repository = "https://github.com/gabalexander/lattice"
+readme = "README.md"
+keywords = ["wiki", "documentation", "claude", "code", "diagrams"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+anyhow = "1.0.104"
+clap = { version = "4.6.7", features = ["derive"] }
+libc = "0.2.190"
+rusqlite = { version = "0.40", features = ["bundled", "fallible_uint"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+sha2 = "0.11.0"
+toml = "1.1.6"
+
+[dev-dependencies]
+tempfile = "3.27.0"
