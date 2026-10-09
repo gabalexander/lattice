@@ -93,7 +93,11 @@ npm --prefix web run check        # svelte-check: types, and Svelte's accessibil
 npm --prefix web test             # vitest: the markdown renderer, links into the code, fences, mermaid's repairs, the event streams
 npm --prefix web run build        # the app, then the export
 node web/scripts/perf.mjs http://127.0.0.1:7348/atlas [--cpu 4]   # with the mock serving the build
+node web/scripts/mermaid-keywords.mjs ~/.cache/lattice/downloads/11.17.2/mermaid.min.js [wiki.json ...]
 ```
+
+The last holds the repairs to mermaid itself: mermaid's own parse, in headless Chrome, over every keyword of every
+kind, the cases in `tests/mermaid/keywords.json`, and every diagram of the wikis given, as written and repaired.
 
 On an Apple M4 Pro Mac, the synthetic wiki (107 diagrams, 3,041 links into the code, 9,856 elements) has its text on
 screen 156 ms after it's asked for, and scrolls top to bottom at 1,500 px a second with a median frame of
@@ -114,8 +118,10 @@ there in under half a second.
   nothing after it, so a ```` ```mermaid ```` fence quoted inside a longer fence is text, not a diagram. The
   generator's diagram check reads them the same way.
 - Diagrams are drawn as they come within about a screen of the window, the nearest first, one at a time
-  (`src/lib/mermaid.ts`), after small repairs to their source (`src/lib/mermaid-sanitize.ts`); one mermaid can't
-  draw shows its source. Their colours come from the theme's tokens over what mermaid draws, so a change of
+  (`src/lib/mermaid.ts`), after small repairs to their source (`src/lib/mermaid-sanitize.ts`): among them a
+  name that is one of mermaid's keywords renamed, a node called `call` made `call_` with `call` as its label
+  (`src/lib/mermaid-keywords.ts`, the generator's repair too), so a wiki written before the generator made it
+  draws. One mermaid still can't draw shows its source. Their colours come from the theme's tokens over what mermaid draws, so a change of
   theme needs no redraw.
 - Fonts: Google Sans Flex stands in for Google Sans and Google Sans Text, which can't be bundled, beside Google
   Sans Code; both are under the SIL Open Font License.

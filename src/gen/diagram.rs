@@ -2,8 +2,9 @@
 //! may have.
 //!
 //! A diagram is made what mermaid in the browser draws: taken out of a
-//! fence if it was put in one, its colours and styles dropped, the slips a
-//! model makes most put right ([`sanitize`]), a flowchart's labels quoted
+//! fence if it was put in one, the slips a model makes most put right
+//! ([`sanitize`]), names that are mermaid's keywords among them, its
+//! colours and styles dropped, a flowchart's labels quoted
 //! ([`quote_labels`]), and then it must read with lattice's own mermaid
 //! reader ([`crate::mermaid::check`]); one that doesn't is a problem the
 //! writer is asked to fix once, then left out. Credentials are taken out of
@@ -66,18 +67,22 @@ pub fn checked_source(source: &str) -> Result<String, String> {
             .collect::<Vec<_>>()
             .join("\n");
     }
+    let source = sanitize(source.trim());
+    // A class diagram declares its classes with `class`; everywhere else it
+    // styles a node, as the rest do.
+    let classes = matches!(
+        crate::mermaid::detect(&source),
+        Some(Ok(crate::mermaid::Kind::Class))
+    );
     let source = source
         .lines()
         .filter(|line| {
             let first = line.split_whitespace().next().unwrap_or("");
-            !matches!(
-                first,
-                "classDef" | "class" | "style" | "linkStyle" | "click"
-            )
+            !matches!(first, "classDef" | "style" | "linkStyle" | "click")
+                && !(first == "class" && !classes)
         })
         .collect::<Vec<_>>()
         .join("\n");
-    let source = sanitize(source.trim());
     crate::mermaid::check(&source)?;
     let first = source.split_whitespace().next().unwrap_or_default();
     let source = if matches!(first, "flowchart" | "graph") {
@@ -103,8 +108,9 @@ const VOID_TAGS: &[&str] = &[
 
 /// `source` with the slips models make most put right: `->>>` arrows made
 /// `->>`, a `<word>` placeholder (which mermaid takes for a tag) made
-/// `{word}`, or in a class diagram `~word~`, and the spaces inside a quoted
-/// label's shape, `a[ "x" ]`, taken out.
+/// `{word}`, or in a class diagram `~word~`, the spaces inside a quoted
+/// label's shape, `a[ "x" ]`, taken out, and names that are mermaid's
+/// keywords renamed ([`crate::mermaid::keywords::rename`]).
 pub fn sanitize(source: &str) -> String {
     let class = source
         .lines()
@@ -115,17 +121,16 @@ pub fn sanitize(source: &str) -> String {
         arrows = arrows.replace("->>>", "->>");
     }
     let placeholders = replace_placeholders(&arrows, class);
-    QUOTED_SHAPE_LABEL
-        .replace_all(&placeholders, |caps: &regex::Captures| {
-            let (open, close) = (&caps[3], &caps[5]);
-            let matching = matches!((open, close), ("[", "]") | ("{", "}") | ("(", ")"));
-            if matching {
-                format!("{}{}{open}\"{}\"{close}", &caps[1], &caps[2], &caps[4])
-            } else {
-                caps[0].to_string()
-            }
-        })
-        .into_owned()
+    let quoted = QUOTED_SHAPE_LABEL.replace_all(&placeholders, |caps: &regex::Captures| {
+        let (open, close) = (&caps[3], &caps[5]);
+        let matching = matches!((open, close), ("[", "]") | ("{", "}") | ("(", ")"));
+        if matching {
+            format!("{}{}{open}\"{}\"{close}", &caps[1], &caps[2], &caps[4])
+        } else {
+            caps[0].to_string()
+        }
+    });
+    crate::mermaid::keywords::rename(&quoted)
 }
 
 /// Whether `source` has a `<word>` placeholder [`sanitize`] would rewrite.
@@ -423,6 +428,38 @@ mod tests {
         );
         assert!(check(&diagram("flowchart TD\n  a --> b\n  end")).is_err());
         assert!(check(&diagram("pie\n \"a\": 1")).is_err());
+    }
+
+    #[test]
+    fn names_that_are_mermaid_keywords_are_renamed_before_the_styles_go() {
+        let checked = check(&diagram(
+            "flowchart LR\n  task -->|prepares| call[call (domain/call)]\n  call --> end\n  class --> task\n  style call fill:#f00",
+        ))
+        .unwrap();
+        assert_eq!(
+            checked.mermaid,
+            "flowchart LR\n  task -->|prepares| call_[\"call (domain/call)\"]\n  call_ --> end_[\"end\"]\n  class_[\"class\"] --> task"
+        );
+        let sequence = check(&diagram(
+            "sequenceDiagram\n  API->>Note: save\n  Note-->>API: saved",
+        ))
+        .unwrap();
+        assert_eq!(
+            sequence.mermaid,
+            "sequenceDiagram\n  participant Note_ as Note\n  API->>Note_: save\n  Note_-->>API: saved"
+        );
+    }
+
+    #[test]
+    fn a_class_diagram_keeps_the_lines_that_declare_its_classes() {
+        let checked = check(&diagram(
+            "classDiagram\n  class Animal {\n    +name\n  }\n  class Dog\n  Animal <|-- Dog\n  style Dog fill:#f00",
+        ))
+        .unwrap();
+        assert_eq!(
+            checked.mermaid,
+            "classDiagram\n  class Animal {\n    +name\n  }\n  class Dog\n  Animal <|-- Dog"
+        );
     }
 
     #[test]

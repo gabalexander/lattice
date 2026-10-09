@@ -1,9 +1,12 @@
 // Small repairs to a diagram's source before mermaid reads it, for the slips models make most: `<T>`
-// placeholders mermaid takes for tags, `->>>` arrows, spaces around a quoted label, and labels with
-// punctuation mermaid reads as syntax left unquoted.
+// placeholders mermaid takes for tags, `->>>` arrows, spaces around a quoted label, labels with
+// punctuation mermaid reads as syntax left unquoted, and names that are mermaid's keywords
+// (./mermaid-keywords.ts).
 //
 // Adapted from deepwiki-by-cc's src/lib/mermaid-sanitize.ts (MIT, Copyright (c) 2026 Andy Tran; see
 // THIRD_PARTY_NOTICES.md).
+
+import { renameKeywords } from './mermaid-keywords';
 
 const QUOTED_SHAPE_LABEL = /(^|[^\w"])([A-Za-z][\w-]*)([[{(])\s*"([^"\n]*)"\s*([\]})])/g;
 
@@ -29,7 +32,8 @@ export function sanitizeMermaid(src: string): string {
   const quoted = placeholders.replace(QUOTED_SHAPE_LABEL, (match, prefix: string, id: string, open: string, label: string, close: string) =>
     matching(open, close) ? `${prefix}${id}${open}"${label}"${close}` : match,
   );
-  return quoted.replace(/(\w+)\[([^\]"]+)\]/g, (match, id: string, label: string) =>
+  const labelled = quoted.replace(/(\w+)\[([^\]"]+)\]/g, (match, id: string, label: string) =>
     /[():,;{}|<>]/.test(label) ? `${id}["${label.replace(/"/g, '#quot;')}"]` : match,
   );
+  return renameKeywords(labelled);
 }

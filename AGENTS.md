@@ -172,6 +172,8 @@ in.
   with read into a graph or a sequence, anything else refused with a reason, and a cap on how big one may be
   - `graph.rs`: the boxes, edges and frames every kind but the sequence is read into
   - `flowchart.rs`, `state.rs`, `class.rs`, `er.rs`, `sequence.rs`: each kind's parser
+  - `keywords.rs`: the words mermaid.js keeps in each kind, which these readers take for names: a name that is
+    one renamed, still showing what it did, and one left refused; the web app's `mermaid-keywords.ts` the same
   - `tests.rs`: every diagram under `tests/mermaid/` reads as its kind, and garbage never panics
 - `src/paths.rs`: where things are kept, by the XDG directories: the settings, the data (the database, and
   each repository's checkout, the build going on and its versions' files), the cache
@@ -194,7 +196,8 @@ in.
   - `src/lib/markdown.ts`: the wiki's markdown, rendered small and strict; `fences.ts`: fences by CommonMark's
     rules, shared with the generator's check; `codelinks.ts`: where a link into the code goes
   - `src/lib/mermaid.ts`: mermaid, loaded and its diagrams drawn as they come near; `mermaid-sanitize.ts`: the
-    repairs made to a diagram first; `highlight.ts`: code blocks coloured by highlight.js, loaded when needed
+    repairs made to a diagram first, `mermaid-keywords.ts` the names that are mermaid's keywords renamed;
+    `highlight.ts`: code blocks coloured by highlight.js, loaded when needed
   - `src/lib/jobs.svelte.ts`: a job followed through its event stream; `sse.ts`: event streams read from a
     response; `theme.svelte.ts`, `toast.svelte.ts`, `format.ts`: the theme, the toast, how things are said
   - `src/lib/components/`: the app's parts: the header, the logo, icons, the theme menu, the source box, a
@@ -204,7 +207,8 @@ in.
   - `src/export/`: the page alone, for `lattice export`, built by `vite.export.config.ts` to `build/export/`
   - `static/`: the fonts with their licences, the theme set before the first paint, the icon
   - `mock/`: a stand-in for lattice's API with its fixtures, and the synthetic wiki; `scripts/perf.mjs`: the
-    page measured in headless Chrome
+    page measured in headless Chrome; `scripts/mermaid-keywords.mjs`: the diagram repairs held to mermaid's own
+    parse in headless Chrome
 - `tests/cli.rs`: the binary and the runner end to end, with a fake `claude`: `doctor`, `build` and `status`,
   `serve` one a data directory, `open` starting one in the background; and the index on each fixture
   repository, with a fake `rust-analyzer`
@@ -215,7 +219,8 @@ in.
 - `tests/gen.rs`: the generator end to end, with a fake `claude` answering from fixtures: a build, a resume,
   a budget reached, a sync, and a build and a sync through the job API
 - `tests/release.rs`: the release's archives named alike everywhere
-- `tests/mermaid/`: diagrams the mermaid tests read
+- `tests/mermaid/`: diagrams the mermaid tests read, and `keywords.json`, the keyword repairs both the generator
+  and the web app are held to
 - `evals/`: the eval (`docs/evals.md`): `config.json` the golden repositories pinned to commits, their core
   files and topics; `questions/` their golden questions; `eval.rs` the runner, `cargo run --example eval`
 - `docs/`: a page for each part: `cli.md`, `server.md`, `configuration.md`, `claude.md`, `web.md`,

@@ -1,0 +1,174 @@
+{
+  "words": {
+    "flowchart": [
+      "call",
+      "class",
+      "classDef",
+      "click",
+      "default",
+      "end",
+      "flowchart",
+      "graph",
+      "href",
+      "interpolate",
+      "linkStyle",
+      "style",
+      "subgraph",
+      "_blank",
+      "_parent",
+      "_self",
+      "_top"
+    ],
+    "sequence": [
+      "activate",
+      "actor",
+      "alt",
+      "and",
+      "autonumber",
+      "box",
+      "break",
+      "create",
+      "critical",
+      "deactivate",
+      "destroy",
+      "details",
+      "else",
+      "end",
+      "link",
+      "links",
+      "loop",
+      "note",
+      "off",
+      "opt",
+      "option",
+      "over",
+      "par",
+      "par_over",
+      "participant",
+      "properties",
+      "rect",
+      "sequencediagram",
+      "title"
+    ],
+    "class": [
+      "call",
+      "callback",
+      "class",
+      "classDef",
+      "click",
+      "cssClass",
+      "href",
+      "link",
+      "namespace",
+      "note",
+      "o",
+      "style",
+      "_blank",
+      "_parent",
+      "_self",
+      "_top"
+    ],
+    "state": [
+      "class",
+      "classdef",
+      "click",
+      "default",
+      "href",
+      "note",
+      "scale",
+      "state",
+      "statediagram",
+      "style"
+    ],
+    "er": [
+      "class",
+      "classdef",
+      "end",
+      "erdiagram",
+      "many",
+      "one",
+      "style",
+      "subgraph",
+      "to"
+    ]
+  },
+  "templates": {
+    "flowchart": {
+      "before": "flowchart LR\n  a --> {w}\n  {w} --> b",
+      "after": "flowchart LR\n  a --> {w}_[\"{w}\"]\n  {w}_ --> b"
+    },
+    "sequence": {
+      "before": "sequenceDiagram\n  participant {w}\n  A->>{w}: hi\n  {w}-->>A: done",
+      "after": "sequenceDiagram\n  participant {w}_ as {w}\n  A->>{w}_: hi\n  {w}_-->>A: done"
+    },
+    "class": {
+      "before": "classDiagram\n  class {w}\n  {w} <|-- B\n  {w} : +run()",
+      "after": "classDiagram\n  class {w}_[\"{w}\"]\n  {w}_ <|-- B\n  {w}_ : +run()"
+    },
+    "state": {
+      "before": "stateDiagram-v2\n  [*] --> {w}\n  {w} --> b : go",
+      "after": "stateDiagram-v2\n  state \"{w}\" as {w}_\n  [*] --> {w}_\n  {w}_ --> b : go"
+    },
+    "er": {
+      "before": "erDiagram\n  {w} ||--o{ B : has",
+      "after": "erDiagram\n  \"{w}\" ||--o{ B : has"
+    }
+  },
+  "cases": [
+    {
+      "name": "a call center: a box called call",
+      "before": "flowchart LR\n  pacing[\"pacing<br/>(domain/campaign/pacing)\"]\n  task[\"task<br/>(domain/task)\"]\n  call[\"call<br/>(domain/call)\"]\n  comply[\"comply<br/>(domain/call/comply)\"]\n  task -->|PrepareCall on sched.calls| call\n  call -->|gRPC run gates| comply\n  engine -->|\"results on p3.results call.#\"| result",
+      "after": "flowchart LR\n  pacing[\"pacing<br/>(domain/campaign/pacing)\"]\n  task[\"task<br/>(domain/task)\"]\n  call_[\"call<br/>(domain/call)\"]\n  comply[\"comply<br/>(domain/call/comply)\"]\n  task -->|PrepareCall on sched.calls| call_\n  call_ -->|gRPC run gates| comply\n  engine -->|\"results on p3.results call.#\"| result"
+    },
+    {
+      "name": "ports and adapters: call as the target of every edge",
+      "before": "flowchart LR\n  domain[\"domain packages<br/>(domain/)\"] -->|depend on interfaces| call[\"Builder, GateRunner, CallQueue<br/>(ports/call.go)\"]\n  grpc[\"gRPC and AMQP adapters<br/>(adapters/grpc/)\"] -->|implement| call\n  mocks -.->|stand in for| call",
+      "after": "flowchart LR\n  domain[\"domain packages<br/>(domain/)\"] -->|depend on interfaces| call_[\"Builder, GateRunner, CallQueue<br/>(ports/call.go)\"]\n  grpc[\"gRPC and AMQP adapters<br/>(adapters/grpc/)\"] -->|implement| call_\n  mocks -.->|stand in for| call_"
+    },
+    {
+      "name": "a flowchart: ids renamed everywhere, labels, edge text and statements left",
+      "before": "flowchart TD\n  a[call] --> end\n  end --> b(end); class --> c\n  a -- call it --> c\n  a -->|style| end-x\n  subgraph style\n    x & end-x\n  end\n  style end fill:#f00\n  class end,a hot\n  classDef hot fill:#f00\n  click c href \"https://example.com\"",
+      "after": "flowchart TD\n  a[call] --> end_[\"end\"]\n  end_ --> b(end); class_[\"class\"] --> c\n  a -- call it --> c\n  a -->|style| end_-x[\"end-x\"]\n  subgraph style_[\"style\"]\n    x & end_-x\n  end\n  style end_ fill:#f00\n  class end_,a hot\n  classDef hot fill:#f00\n  click c href \"https://example.com\""
+    },
+    {
+      "name": "a flowchart: a name already taken, a subgraph title of words",
+      "before": "flowchart LR\n  subgraph Domain call flow\n    call --> call_\n  end\n  subgraph g [The call]\n    href\n  end",
+      "after": "flowchart LR\n  subgraph \"Domain call flow\"\n    call__[\"call\"] --> call_\n  end\n  subgraph g [The call]\n    href_[\"href\"]\n  end"
+    },
+    {
+      "name": "a flowchart: ids starting with o or x after a headless edge, and o touching its edge",
+      "before": "flowchart LR\n  a---order\n  a --order\n  a-.-xray\n  a===ox\n  o-->a\n  a --o b\n  a -->order",
+      "after": "flowchart LR\n  a--- order\n  a --- order\n  a-.- xray\n  a=== ox\n  o -->a\n  a --o b\n  a -->order"
+    },
+    {
+      "name": "a sequence: participants declared, aliased, undeclared, and a frame whose text has an arrow",
+      "before": "sequenceDiagram\n  participant Note\n  actor Loop as The loop\n  Note->>Box: hi\n  Box ->> +Note: back\n  loop every 5 -> 10s\n    Note over Note,Box: x\n    Loop-->>Note: tick\n  end\n  activate Box",
+      "after": "sequenceDiagram\n  participant Note_ as Note\n  actor Loop_ as The loop\n  participant Box_ as Box\n  Note_->>Box_: hi\n  Box_ ->> +Note_: back\n  loop every 5 -> 10s\n    Note over Note_,Box_: x\n    Loop_-->>Note_: tick\n  end\n  activate Box_"
+    },
+    {
+      "name": "a class diagram: a class declared with a generic, one only used",
+      "before": "classDiagram\n  class link~T~ {\n    +run()\n  }\n  note --> link : uses\n  A \"1\" o-- \"*\" note\n  note : +text\n  note for link \"a\"",
+      "after": "classDiagram\n  class link_~T~[\"link\"] {\n    +run()\n  }\n  class note_[\"note\"]\n  note_ --> link_ : uses\n  A \"1\" o-- \"*\" note_\n  note_ : +text\n  note for link_ \"a\""
+    },
+    {
+      "name": "a state diagram: states described where they had no description",
+      "before": "stateDiagram-v2\n  [*] --> Default\n  Default --> State : go\n  state Note {\n    a --> b\n  }\n  Default : waiting\n  note right of State : hi",
+      "after": "stateDiagram-v2\n  state \"Default\" as Default_\n  [*] --> Default_\n  state \"State\" as State_\n  Default_ --> State_ : go\n  state \"Note\" as Note_ {\n    a --> b\n  }\n  Default_ : waiting\n  note right of State_ : hi"
+    },
+    {
+      "name": "an ER diagram: entities quoted",
+      "before": "erDiagram\n  CLASS ||--o{ STUDENT : has\n  CLASS {\n    string id PK\n  }\n  STUDENT }o--|| one : in",
+      "after": "erDiagram\n  \"CLASS\" ||--o{ STUDENT : has\n  \"CLASS\" {\n    string id PK\n  }\n  STUDENT }o--|| \"one\" : in"
+    },
+    {
+      "name": "words that only start like a keyword, or differ in case where case counts, are left",
+      "before": "flowchart LR\n  calls --> ending\n  End --> Call\n  end_x --> classes",
+      "after": "flowchart LR\n  calls --> ending\n  End --> Call\n  end_x --> classes"
+    },
+    {
+      "name": "a kind this repair doesn't know is left",
+      "before": "pie\n  \"end\" : 1",
+      "after": "pie\n  \"end\" : 1"
+    }
+  ]
+}
