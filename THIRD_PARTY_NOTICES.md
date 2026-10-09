@@ -1,6 +1,9 @@
 # Third-party notices
 
-lattice adapts code and text from these projects, under their licenses.
+lattice adapts code and text from these projects, under their licenses. It also downloads
+[mermaid](https://github.com/mermaid-js/mermaid) (MIT, Copyright (c) 2014 - 2022 Knut Sveidqvist), which draws
+the diagrams; it isn't part of lattice, and a site `lattice export` writes carries it with its license,
+`mermaid.LICENSE.txt`.
 
 ## deepwiki-by-cc
 
@@ -38,9 +41,9 @@ SOFTWARE.
 
 https://github.com/gabalexander/crystal
 
-Much of lattice started in crystal: the modules that say so at their top (`claude`, `clipboard`, `config`, `db`,
-`download`, `links`, `mermaid`, `output`, `printable`, `secrets`, `shell`), `install.sh`, the workflows, the
-Makefile and the Homebrew formula. crystal's `src/mermaid/` is itself adapted from docket's `docket-mermaid`
+Much of lattice started in crystal: the modules that say so at their top (`ask`, `claude`, `clipboard`,
+`config`, `db`, `download`, `editor`, `export`, `http`, `links`, `mermaid`, `output`, `printable`, `secrets`,
+`server`, `shell`), `install.sh`, the workflows, the Makefile and the Homebrew formula. crystal's `src/mermaid/` is itself adapted from docket's `docket-mermaid`
 crate, by the same author.
 
 ```
