@@ -1,6 +1,6 @@
 [package]
 name = "lattice"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 rust-version = "1.88"
 description = "A code wiki for your own repositories, written by Claude Code and kept up to date"
