@@ -12,15 +12,19 @@
 # musl, and those three files.
 
 ARG ALPINE=3.22
+# Docker's official images, from AWS's public mirror of them: Docker Hub
+# limits pulls by address, which shared CI runners keep reaching. To build
+# from Docker Hub instead: --build-arg BASE=docker.io/library
+ARG BASE=public.ecr.aws/docker/library
 
-FROM node:22-alpine AS web
+FROM ${BASE}/node:22-alpine AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM rust:1-alpine AS lattice
+FROM ${BASE}/rust:1-alpine AS lattice
 # rusqlite builds SQLite from its source.
 RUN apk add --no-cache musl-dev
 WORKDIR /src
@@ -30,7 +34,7 @@ COPY src/ src/
 COPY --from=web /src/web/build web/build
 RUN cargo build --release --locked && strip target/release/lattice
 
-FROM alpine:${ALPINE} AS downloads
+FROM ${BASE}/alpine:${ALPINE} AS downloads
 RUN apk add --no-cache bash ca-certificates curl libgcc libstdc++ ripgrep
 # `stable`, `latest`, or a version like 2.1.295: the image never updates
 # it itself, so a newer one comes with an image built again.
@@ -41,7 +45,7 @@ RUN curl -fsSL -o /mermaid.min.js https://cdn.jsdelivr.net/npm/mermaid@11.17.2/d
     && echo "581ed7d74bd9048d0e3a91363927d72ef22942d7722546b27f7cc29e35390eb8  /mermaid.min.js" \
     | sha256sum -c -
 
-FROM alpine:${ALPINE}
+FROM ${BASE}/alpine:${ALPINE}
 RUN apk add --no-cache ca-certificates git libgcc libstdc++ openssh-client ripgrep \
     && adduser -D -u 1000 -s /bin/sh lattice \
     && mkdir -p /data /home/lattice/.claude /opt/lattice/cache/lattice/downloads/11.17.2 \
